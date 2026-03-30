@@ -9,6 +9,20 @@ const state = {
   invoices: [],
   logs: [],
   chats: [],
+  mode: 'supabase',
+};
+
+const localDb = {
+  key: 'rcv-local-db',
+  read() {
+    return JSON.parse(localStorage.getItem(this.key) || '{"usuarios":[],"notas":[],"conferencias":[],"logs":[],"chats":[]}');
+  },
+  write(data) {
+    localStorage.setItem(this.key, JSON.stringify(data));
+  },
+  nextId(items) {
+    return (items.at(-1)?.id || 0) + 1;
+  },
 };
 
 const qs = (id) => document.getElementById(id);
@@ -27,16 +41,95 @@ const logsContainer = qs('logsContainer');
 const adminConferencias = qs('adminConferencias');
 const notaInfo = qs('notaInfo');
 
+function isSchemaMissingError(error) {
+  const msg = error?.message || '';
+  return msg.includes('schema cache') || msg.includes('Could not find the table') || msg.includes('relation') || msg.includes('does not exist');
+}
+
+async function maybeSwitchToLocalMode(error) {
+  if (!error || !isSchemaMissingError(error) || state.mode === 'local') return false;
+  state.mode = 'local';
+  alert('As tabelas do Supabase ainda não existem. O sistema entrou em MODO LOCAL para você conseguir testar agora.\n\nPara usar banco online, rode o arquivo supabase-schema.sql no SQL Editor do Supabase.');
+  return true;
+}
+
+async function dbSelect(table, options = {}) {
+  if (state.mode === 'local') {
+    const db = localDb.read();
+    let rows = [...(db[table] || [])];
+    if (options.eq) {
+      for (const [k, v] of Object.entries(options.eq)) rows = rows.filter((r) => String(r[k]) === String(v));
+    }
+    if (options.orderBy) {
+      rows.sort((a, b) => (new Date(b[options.orderBy]) - new Date(a[options.orderBy])));
+    }
+    if (options.single) return rows[0] || null;
+    return rows;
+  }
+
+  let query = supabase.from(table).select('*');
+  if (options.eq) {
+    for (const [k, v] of Object.entries(options.eq)) query = query.eq(k, v);
+  }
+  if (options.orderBy) query = query.order(options.orderBy, { ascending: false });
+  if (options.single) query = query.single();
+
+  const { data, error } = await query;
+  if (await maybeSwitchToLocalMode(error)) return dbSelect(table, options);
+  if (error) throw error;
+  return data;
+}
+
+async function dbInsert(table, payload) {
+  if (state.mode === 'local') {
+    const db = localDb.read();
+    const arr = db[table] || [];
+    const item = { ...payload, id: localDb.nextId(arr), created_at: new Date().toISOString() };
+    arr.push(item);
+    db[table] = arr;
+    localDb.write(db);
+    return item;
+  }
+
+  const { data, error } = await supabase.from(table).insert(payload).select('*').single();
+  if (await maybeSwitchToLocalMode(error)) return dbInsert(table, payload);
+  if (error) throw error;
+  return data;
+}
+
+async function dbUpdate(table, match, patch) {
+  if (state.mode === 'local') {
+    const db = localDb.read();
+    db[table] = (db[table] || []).map((r) => Object.entries(match).every(([k, v]) => String(r[k]) === String(v)) ? { ...r, ...patch } : r);
+    localDb.write(db);
+    return;
+  }
+
+  let query = supabase.from(table).update(patch);
+  for (const [k, v] of Object.entries(match)) query = query.eq(k, v);
+  const { error } = await query;
+  if (await maybeSwitchToLocalMode(error)) return dbUpdate(table, match, patch);
+  if (error) throw error;
+}
+
+async function dbDeleteAll(table) {
+  if (state.mode === 'local') {
+    const db = localDb.read();
+    db[table] = [];
+    localDb.write(db);
+    return;
+  }
+  const { error } = await supabase.from(table).delete().neq('id', 0);
+  if (await maybeSwitchToLocalMode(error)) return dbDeleteAll(table);
+  if (error) throw error;
+}
+
 function setUser(user) {
   state.user = user;
-  localStorage.setItem('rcv-user', JSON.stringify(user));
+  if (user) localStorage.setItem('rcv-user', JSON.stringify(user));
+  else localStorage.removeItem('rcv-user');
   renderAuthState();
-  if (user) {
-    loadInvoices();
-    loadLogs();
-    loadConferencias();
-    loadChats();
-  }
+  if (user) refreshAll();
 }
 
 function bootstrapUser() {
@@ -44,10 +137,15 @@ function bootstrapUser() {
   if (saved) {
     state.user = JSON.parse(saved);
     renderAuthState();
-    loadInvoices();
-    loadLogs();
-    loadConferencias();
-    loadChats();
+    refreshAll();
+  }
+}
+
+async function verifySupabaseSchema() {
+  try {
+    await dbSelect('usuarios', { orderBy: 'created_at' });
+  } catch (error) {
+    await maybeSwitchToLocalMode(error);
   }
 }
 
@@ -56,6 +154,7 @@ function renderAuthState() {
   authSection.classList.toggle('hidden', !!user);
   adminSection.classList.toggle('hidden', !user || user.role !== 'adm');
   operacaoSection.classList.toggle('hidden', !user || user.role !== 'operacao');
+  document.title = state.mode === 'local' ? 'Recebimento (MODO LOCAL)' : 'Recebimento e Conferência';
 }
 
 function parseXmlText(xmlText) {
@@ -98,10 +197,13 @@ async function registerUser(evt) {
     telefone: form.get('telefone') || null,
   };
 
-  const { error } = await supabase.from('usuarios').insert(payload);
-  if (error) return alert(`Erro ao cadastrar: ${error.message}`);
-  alert('Usuário cadastrado com sucesso!');
-  registerForm.reset();
+  try {
+    await dbInsert('usuarios', payload);
+    alert(`Usuário cadastrado com sucesso! (${state.mode.toUpperCase()})`);
+    registerForm.reset();
+  } catch (error) {
+    alert(`Erro ao cadastrar: ${error.message}`);
+  }
 }
 
 async function login(evt) {
@@ -110,15 +212,13 @@ async function login(evt) {
   const matricula = form.get('matricula');
   const senha = form.get('senha');
 
-  const { data, error } = await supabase
-    .from('usuarios')
-    .select('*')
-    .eq('matricula', matricula)
-    .eq('senha', senha)
-    .single();
-
-  if (error || !data) return alert('Matrícula ou senha inválida.');
-  setUser(data);
+  try {
+    const data = await dbSelect('usuarios', { eq: { matricula, senha }, single: true });
+    if (!data) return alert('Matrícula ou senha inválida.');
+    setUser(data);
+  } catch (error) {
+    alert(`Erro no login: ${error.message}`);
+  }
 }
 
 async function publishInvoice(evt) {
@@ -143,33 +243,36 @@ async function publishInvoice(evt) {
     publicado_por: state.user.matricula,
   };
 
-  const { error } = await supabase.from('notas').insert(payload);
-  if (error) return alert(`Erro ao publicar nota: ${error.message}`);
+  try {
+    await dbInsert('notas', payload);
+    invoicePreview.textContent = JSON.stringify(nota, null, 2);
+    state.currentInvoice = nota;
+    uploadXmlForm.reset();
+    alert(`Nota publicada para conferência. (${state.mode.toUpperCase()})`);
 
-  invoicePreview.textContent = JSON.stringify(nota, null, 2);
-  state.currentInvoice = nota;
-  uploadXmlForm.reset();
-  alert('Nota publicada para conferência.');
-
-  await logAction('PUBLICACAO_NOTA', null, 0, 'Nota publicada pelo ADM', false);
-  loadInvoices();
+    await logAction('PUBLICACAO_NOTA', null, 0, 'Nota publicada pelo ADM', false);
+    await loadInvoices();
+  } catch (error) {
+    alert(`Erro ao publicar nota: ${error.message}`);
+  }
 }
 
 async function loadInvoices() {
-  const { data, error } = await supabase.from('notas').select('*').order('created_at', { ascending: false });
-  if (error) return;
-  state.invoices = data || [];
+  try {
+    const data = await dbSelect('notas', { orderBy: 'created_at' });
+    state.invoices = data || [];
 
-  notaSelect.innerHTML = '';
-  state.invoices.forEach((nota) => {
-    const option = document.createElement('option');
-    option.value = nota.id;
-    option.textContent = `${nota.numero_nota}/${nota.placa} - ${nota.motorista}`;
-    notaSelect.appendChild(option);
-  });
+    notaSelect.innerHTML = '';
+    state.invoices.forEach((nota) => {
+      const option = document.createElement('option');
+      option.value = nota.id;
+      option.textContent = `${nota.numero_nota}/${nota.placa} - ${nota.motorista}`;
+      notaSelect.appendChild(option);
+    });
 
-  if (state.invoices.length && state.user?.role === 'operacao') {
-    renderOperacaoInvoice(state.invoices[0].id);
+    if (state.invoices.length && state.user?.role === 'operacao') renderOperacaoInvoice(state.invoices[0].id);
+  } catch (error) {
+    console.error(error);
   }
 }
 
@@ -189,12 +292,10 @@ function renderOperacaoInvoice(notaId) {
   nota.itens_json.forEach((item) => {
     const div = document.createElement('div');
     div.className = 'item';
-    div.innerHTML = `
-      <p><strong>${item.codigo}</strong> - ${item.descricao}</p>
+    div.innerHTML = `<p><strong>${item.codigo}</strong> - ${item.descricao}</p>
       <label>Quantidade conferida
-        <input type="number" step="0.01" min="0" required name="${item.codigo}" />
-      </label>
-    `;
+      <input type="number" step="0.01" min="0" required name="${item.codigo}" />
+      </label>`;
     conferenciaForm.appendChild(div);
   });
 
@@ -207,7 +308,6 @@ function renderOperacaoInvoice(notaId) {
   btn.type = 'submit';
   btn.textContent = 'Enviar conferência';
   conferenciaForm.appendChild(btn);
-
   conferenciaForm.dataset.notaId = nota.id;
 }
 
@@ -216,52 +316,45 @@ async function submitConferencia(evt) {
   const notaId = conferenciaForm.dataset.notaId;
   const nota = state.invoices.find((n) => String(n.id) === String(notaId));
   if (!nota) return;
-
   if (!confirm('Tem certeza que deseja terminar a conferência?')) return;
 
   const form = new FormData(conferenciaForm);
   const conferidos = nota.itens_json.map((item) => {
     const informado = Number(form.get(item.codigo) || 0);
-    return {
-      ...item,
-      conferido: informado,
-      divergencia: Number((informado - Number(item.quantidadeFardo)).toFixed(2)),
-    };
+    return { ...item, conferido: informado, divergencia: Number((informado - Number(item.quantidadeFardo)).toFixed(2)) };
   });
 
   const divergentes = conferidos.filter((c) => c.divergencia !== 0);
-  let finalizadaComDivergencia = false;
+  let status = 'ok';
   if (divergentes.length) {
     const codigos = divergentes.map((d) => d.codigo).join(', ');
-    const continuar = confirm(`Há divergência nos códigos: ${codigos}. Finalizar mesmo assim?`);
-    if (!continuar) return;
-    finalizadaComDivergencia = true;
+    if (!confirm(`Há divergência nos códigos: ${codigos}. Finalizar mesmo assim?`)) return;
+    status = 'com_divergencia';
   }
 
-  const payload = {
-    nota_id: nota.id,
-    conferente_matricula: state.user.matricula,
-    observacao: form.get('observacao') || null,
-    itens_conferidos: conferidos,
-    status: finalizadaComDivergencia ? 'com_divergencia' : 'ok',
-  };
+  try {
+    await dbInsert('conferencias', {
+      nota_id: nota.id,
+      conferente_matricula: state.user.matricula,
+      observacao: form.get('observacao') || null,
+      itens_conferidos: conferidos,
+      status,
+    });
 
-  const { error } = await supabase.from('conferencias').insert(payload);
-  if (error) return alert(`Erro ao enviar conferência: ${error.message}`);
+    for (const item of divergentes) {
+      await logAction('DIVERGENCIA', item.codigo, item.divergencia, `Nota ${nota.numero_nota}`, true);
+    }
+    if (!divergentes.length) await logAction('CONFERENCIA_OK', null, 0, `Nota ${nota.numero_nota} sem divergências`, false);
 
-  for (const item of divergentes) {
-    await logAction('DIVERGENCIA', item.codigo, item.divergencia, `Nota ${nota.numero_nota}`, true);
+    alert(`Conferência enviada com sucesso. (${state.mode.toUpperCase()})`);
+    conferenciaForm.reset();
+  } catch (error) {
+    alert(`Erro ao enviar conferência: ${error.message}`);
   }
-  if (!divergentes.length) {
-    await logAction('CONFERENCIA_OK', null, 0, `Nota ${nota.numero_nota} sem divergências`, false);
-  }
-
-  alert('Conferência enviada com sucesso.');
-  conferenciaForm.reset();
 }
 
 async function logAction(tipo, codigo, quantidadeDivergencia, mensagem, divergente) {
-  await supabase.from('logs').insert({
+  await dbInsert('logs', {
     tipo,
     codigo,
     quantidade_divergencia: quantidadeDivergencia,
@@ -273,32 +366,28 @@ async function logAction(tipo, codigo, quantidadeDivergencia, mensagem, divergen
 }
 
 async function loadLogs() {
-  const { data } = await supabase.from('logs').select('*').order('created_at', { ascending: false });
+  const data = await dbSelect('logs', { orderBy: 'created_at' });
   state.logs = data || [];
   logsContainer.innerHTML = '';
   state.logs.forEach((log) => {
     const row = document.createElement('div');
     row.className = `log ${log.divergente ? 'divergente' : ''}`;
-    row.innerHTML = `<strong>${new Date(log.created_at).toLocaleString('pt-BR')}</strong> - 
-      usuário ${log.usuario_matricula} - ${log.tipo} - cód: ${log.codigo || '-'} - divergência: ${log.quantidade_divergencia || 0} <br/>
-      ${log.mensagem || ''}`;
+    row.innerHTML = `<strong>${new Date(log.created_at).toLocaleString('pt-BR')}</strong> - usuário ${log.usuario_matricula} - ${log.tipo} - cód: ${log.codigo || '-'} - divergência: ${log.quantidade_divergencia || 0}<br/>${log.mensagem || ''}`;
     logsContainer.appendChild(row);
   });
 }
 
 async function loadConferencias() {
-  const { data } = await supabase.from('conferencias').select('*').order('created_at', { ascending: false });
+  const data = await dbSelect('conferencias', { orderBy: 'created_at' });
   adminConferencias.innerHTML = '';
   (data || []).forEach((conf) => {
     const div = document.createElement('div');
     const divergencias = (conf.itens_conferidos || []).filter((i) => i.divergencia !== 0);
     div.className = `conferencia ${divergencias.length ? 'divergente' : ''}`;
-    div.innerHTML = `
-      <p><strong>Conferente:</strong> ${conf.conferente_matricula}</p>
+    div.innerHTML = `<p><strong>Conferente:</strong> ${conf.conferente_matricula}</p>
       <p><strong>Status:</strong> ${conf.status}</p>
       <p><strong>Observação:</strong> ${conf.observacao || '-'}</p>
-      <p><strong>Divergências:</strong> ${divergencias.map((d) => `${d.codigo} (${d.divergencia})`).join(', ') || 'Nenhuma'}</p>
-    `;
+      <p><strong>Divergências:</strong> ${divergencias.map((d) => `${d.codigo} (${d.divergencia})`).join(', ') || 'Nenhuma'}</p>`;
     adminConferencias.appendChild(div);
   });
 }
@@ -310,18 +399,15 @@ async function recoverBySms() {
   if (!telefone) return;
 
   const novaSenha = Math.random().toString(36).slice(-8);
-  const { error } = await supabase
-    .from('usuarios')
-    .update({ senha: novaSenha })
-    .eq('matricula', matricula)
-    .eq('telefone', telefone);
-
-  if (error) return alert(`Erro: ${error.message}`);
-
-  await supabase.functions.invoke('send-sms', {
-    body: { to: telefone, message: `Nova senha: ${novaSenha}` },
-  });
-  alert('Senha resetada. SMS enviado (requer edge function send-sms configurada).');
+  try {
+    await dbUpdate('usuarios', { matricula, telefone }, { senha: novaSenha });
+    if (state.mode === 'supabase') {
+      await supabase.functions.invoke('send-sms', { body: { to: telefone, message: `Nova senha: ${novaSenha}` } });
+    }
+    alert(`Senha resetada. ${state.mode === 'supabase' ? 'SMS solicitado à edge function.' : 'MODO LOCAL: exiba a senha ao usuário.'}\nNova senha: ${novaSenha}`);
+  } catch (error) {
+    alert(`Erro: ${error.message}`);
+  }
 }
 
 async function recoverByEmail() {
@@ -329,14 +415,17 @@ async function recoverByEmail() {
   if (!matricula) return;
 
   const novaSenha = Math.random().toString(36).slice(-8);
-  const { error } = await supabase.from('usuarios').update({ senha: novaSenha }).eq('matricula', matricula);
-  if (error) return alert(`Erro: ${error.message}`);
-
-  await supabase.functions.invoke('send-email', {
-    body: { to: 'leseliv487@fengnu.com', subject: 'Nova senha', text: `Nova senha: ${novaSenha}` },
-  });
-
-  alert('Senha resetada. Email enviado (requer edge function send-email configurada).');
+  try {
+    await dbUpdate('usuarios', { matricula }, { senha: novaSenha });
+    if (state.mode === 'supabase') {
+      await supabase.functions.invoke('send-email', {
+        body: { to: 'leseliv487@fengnu.com', subject: 'Nova senha', text: `Nova senha: ${novaSenha}` },
+      });
+    }
+    alert(`Senha resetada. ${state.mode === 'supabase' ? 'Email solicitado à edge function.' : 'MODO LOCAL: exiba a senha ao usuário.'}\nNova senha: ${novaSenha}`);
+  } catch (error) {
+    alert(`Erro: ${error.message}`);
+  }
 }
 
 function exportLogs() {
@@ -351,8 +440,8 @@ function exportLogs() {
 
 async function clearLogs() {
   if (!confirm('Deseja apagar todos os logs?')) return;
-  await supabase.from('logs').delete().neq('id', 0);
-  loadLogs();
+  await dbDeleteAll('logs');
+  await loadLogs();
 }
 
 function printInvoice() {
@@ -370,36 +459,40 @@ async function sendChat(evt) {
   if (!text) return;
 
   const destinoRole = state.user.role === 'adm' ? 'operacao' : 'adm';
-  await supabase.from('chats').insert({
+  await dbInsert('chats', {
     from_matricula: state.user.matricula,
     from_role: state.user.role,
     to_role: destinoRole,
     mensagem: text,
   });
   input.value = '';
-  loadChats();
+  await loadChats();
 }
 
 async function loadChats() {
   if (!state.user) return;
-  const { data } = await supabase
-    .from('chats')
-    .select('*')
-    .or(`to_role.eq.${state.user.role},from_role.eq.${state.user.role}`)
-    .order('created_at', { ascending: true });
-  state.chats = (data || []).filter(
-    (msg) => msg.to_role === state.user.role || msg.from_matricula === state.user.matricula,
-  );
+  const data = await dbSelect('chats', { orderBy: 'created_at' });
+  state.chats = (data || []).filter((msg) => msg.to_role === state.user.role || msg.from_matricula === state.user.matricula);
 
   const chatMessages = qs('chatMessages');
   chatMessages.innerHTML = '';
-  state.chats.forEach((m) => {
-    const p = document.createElement('p');
-    p.className = m.from_matricula === state.user.matricula ? 'mine' : 'theirs';
-    p.textContent = `${m.from_matricula}: ${m.mensagem}`;
-    chatMessages.appendChild(p);
-  });
+  state.chats
+    .slice()
+    .reverse()
+    .forEach((m) => {
+      const p = document.createElement('p');
+      p.className = m.from_matricula === state.user.matricula ? 'mine' : 'theirs';
+      p.textContent = `${m.from_matricula}: ${m.mensagem}`;
+      chatMessages.appendChild(p);
+    });
   chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+async function refreshAll() {
+  await loadInvoices();
+  await loadLogs();
+  await loadConferencias();
+  await loadChats();
 }
 
 registerForm.addEventListener('submit', registerUser);
@@ -420,13 +513,15 @@ qs('chatForm').addEventListener('submit', sendChat);
 qs('btnLogs').addEventListener('click', () => logsContainer.scrollIntoView({ behavior: 'smooth' }));
 
 setInterval(() => {
-  if (state.user) {
-    loadChats();
-    if (state.user.role === 'adm') {
-      loadConferencias();
-      loadLogs();
-    }
+  if (!state.user) return;
+  loadChats();
+  if (state.user.role === 'adm') {
+    loadConferencias();
+    loadLogs();
   }
 }, 6000);
 
-bootstrapUser();
+(async () => {
+  await verifySupabaseSchema();
+  bootstrapUser();
+})();

@@ -10,18 +10,30 @@ Aplicação web simples (HTML/CSS/JS) integrada ao Supabase para:
 - exportar e apagar logs;
 - chat por bolha flutuante entre perfis.
 
-## 1) Configuração
+## 1) Erro "Could not find the table 'public.usuarios'"
+
+Se aparecer esse erro ao cadastrar/login, significa que as tabelas ainda não foram criadas no Supabase.
+
+**Como corrigir (definitivo):**
+1. Abra o Supabase > SQL Editor.
+2. Rode o script `supabase-schema.sql`.
+3. Atualize a página.
+
+**Comportamento atual do app:**
+- Se detectar ausência das tabelas, o sistema troca automaticamente para **MODO LOCAL** (localStorage), para você continuar testando sem travar.
+
+## 2) Configuração Supabase
 
 1. Crie um projeto no Supabase.
 2. No SQL Editor, rode o script `supabase-schema.sql`.
 3. Configure RLS/policies conforme sua necessidade de segurança.
-4. (Opcional) criar edge functions:
+4. (Opcional) crie edge functions:
    - `send-sms` para envio da nova senha via SMS;
    - `send-email` para envio da nova senha por email.
 
 > **Importante:** este MVP salva senha em texto puro para simplificar e atender ao fluxo pedido. Em produção, usar autenticação nativa do Supabase Auth e hash de senha.
 
-## 2) Executar localmente
+## 3) Executar localmente
 
 Use qualquer servidor estático. Exemplo:
 
@@ -31,7 +43,7 @@ python3 -m http.server 8080
 
 Depois abra `http://localhost:8080`.
 
-## 3) Fluxo
+## 4) Fluxo
 
 ### ADM
 - sobe XML + motorista/placa/telefone;
@@ -46,7 +58,7 @@ Depois abra `http://localhost:8080`.
 - confirma envio;
 - se houver divergência, sistema pede confirmação e salva observação.
 
-## 4) Sobre Terabox
+## 5) Sobre Terabox
 
 Não foi incluída integração direta com Terabox neste MVP.
 O sistema mantém logs no banco Supabase e exportação em JSON.
