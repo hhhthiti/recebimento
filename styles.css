@@ -1,0 +1,117 @@
+:root {
+  color-scheme: light;
+  font-family: Arial, sans-serif;
+}
+body {
+  margin: 0;
+  background: #f5f7fb;
+}
+header {
+  background: #0f2747;
+  color: white;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+main {
+  padding: 20px;
+}
+.card {
+  background: white;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.08);
+}
+.grid.two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+label {
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+input, select, textarea, button {
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #c4c9d4;
+}
+button {
+  cursor: pointer;
+  border: none;
+  background: #2766cf;
+  color: white;
+}
+button.danger { background: #ca2e2e; }
+.toolbar { display: flex; gap: 8px; }
+.hidden { display: none; }
+.preview {
+  max-height: 320px;
+  overflow: auto;
+  padding: 10px;
+  background: #eff3fb;
+  border-radius: 8px;
+}
+.log, .conferencia {
+  padding: 10px;
+  border: 1px solid #dde2eb;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.divergente {
+  border-color: #e54343;
+  background: #fff0f0;
+}
+.item {
+  border: 1px solid #e2e6ef;
+  border-radius: 8px;
+  padding: 10px;
+}
+.chat-bubble {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  border-radius: 999px;
+  width: 54px;
+  height: 54px;
+  font-size: 20px;
+}
+.chat-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 84px;
+  width: 320px;
+  background: white;
+  border: 1px solid #d8deea;
+  border-radius: 8px;
+  padding: 12px;
+}
+.chat-messages {
+  min-height: 220px;
+  max-height: 220px;
+  overflow: auto;
+  background: #f2f5fb;
+  border-radius: 8px;
+  padding: 8px;
+}
+.chat-messages p {
+  margin: 4px 0;
+  padding: 6px;
+  border-radius: 6px;
+}
+.chat-messages p.mine { background: #ddebff; }
+.chat-messages p.theirs { background: #fff; }
+.chat-form {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}

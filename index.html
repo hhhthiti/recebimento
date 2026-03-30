@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Recebimento e Conferência</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  </head>
+  <body>
+    <header>
+      <h1>Recebimento de Notas</h1>
+      <div class="toolbar" id="globalToolbar">
+        <button id="btnLogs">Logs</button>
+        <button id="btnExportLogs">Exportar logs</button>
+        <button id="btnClearLogs" class="danger">Apagar logs</button>
+        <button id="btnLogout">Sair</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="authSection" class="card">
+        <h2>Cadastro e Login</h2>
+        <div class="grid two">
+          <form id="registerForm" class="stack">
+            <h3>Cadastrar usuário</h3>
+            <label>Matrícula (login)
+              <input required name="matricula" />
+            </label>
+            <label>Senha
+              <input required name="senha" type="password" />
+            </label>
+            <label>Perfil
+              <select name="role" required>
+                <option value="operacao">Operação</option>
+                <option value="adm">ADM</option>
+              </select>
+            </label>
+            <label>Email
+              <input name="email" type="email" />
+            </label>
+            <label>Telefone
+              <input name="telefone" placeholder="5511999999999" />
+            </label>
+            <button type="submit">Cadastrar</button>
+          </form>
+
+          <form id="loginForm" class="stack">
+            <h3>Entrar</h3>
+            <label>Matrícula
+              <input required name="matricula" />
+            </label>
+            <label>Senha
+              <input required name="senha" type="password" />
+            </label>
+            <button type="submit">Entrar</button>
+            <div class="recovery">
+              <strong>Recuperar senha</strong>
+              <button type="button" id="recoverSms">Via SMS</button>
+              <button type="button" id="recoverEmail">Via Email</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section id="adminSection" class="card hidden">
+        <h2>Painel ADM</h2>
+
+        <div class="grid two">
+          <form id="uploadXmlForm" class="stack">
+            <h3>Subir XML de NF-e</h3>
+            <label>Arquivo XML
+              <input type="file" id="xmlFile" accept=".xml,text/xml" required />
+            </label>
+            <label>Motorista
+              <input name="motorista" required />
+            </label>
+            <label>Telefone motorista
+              <input name="telefoneMotorista" required />
+            </label>
+            <label>Placa
+              <input name="placa" required />
+            </label>
+            <button type="submit">Publicar nota para conferência</button>
+          </form>
+
+          <div class="stack">
+            <h3>Visualização da nota</h3>
+            <pre id="invoicePreview" class="preview">Nenhum XML carregado.</pre>
+            <button id="btnPrintInvoice" type="button">Gerar PDF (Nota)</button>
+            <button id="btnPrintMaterials" type="button">Gerar PDF (Materiais)</button>
+          </div>
+        </div>
+
+        <div class="stack">
+          <h3>Conferências recebidas</h3>
+          <div id="adminConferencias"></div>
+        </div>
+
+        <div class="stack">
+          <h3>Logs</h3>
+          <div id="logsContainer"></div>
+        </div>
+      </section>
+
+      <section id="operacaoSection" class="card hidden">
+        <h2>Painel Operação</h2>
+        <div class="stack">
+          <label>Escolha uma nota publicada
+            <select id="notaSelect"></select>
+          </label>
+          <div id="notaInfo"></div>
+          <form id="conferenciaForm" class="stack"></form>
+        </div>
+      </section>
+    </main>
+
+    <button id="chatBubble" class="chat-bubble">💬</button>
+    <section id="chatPanel" class="chat-panel hidden">
+      <h3>Chat</h3>
+      <div id="chatMessages" class="chat-messages"></div>
+      <form id="chatForm" class="chat-form">
+        <input id="chatInput" placeholder="Digite sua mensagem" required />
+        <button type="submit">Enviar</button>
+      </form>
+    </section>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
