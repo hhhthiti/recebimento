@@ -182,7 +182,24 @@ function parseXmlText(xmlText) {
     emitente: text('xNome'),
     valorTotal: Number(text('vNF') || text('vNFTot') || 0),
     items,
+    transporte: extractTransportInfo(xml),
     rawXml: xmlText,
+  };
+}
+
+function extractTransportInfo(xml) {
+  const text = (tag) => xml.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
+  const infCpl = text('infCpl');
+  const motorista = text('xNome') || text('xContato') || '-';
+  const telefoneByTag = text('fone');
+  const telefoneByText = infCpl.match(/(?:fone|telefone)[:\\s]*(\\+?\\d{10,14})/i)?.[1] || '';
+  const placaByTag = text('placa') || text('xPlaca');
+  const placaByText = infCpl.match(/\\b[A-Z]{3}[0-9][A-Z0-9][0-9]{2}\\b/i)?.[0] || '';
+
+  return {
+    motorista: motorista || '-',
+    telefone: telefoneByTag || telefoneByText || '-',
+    placa: placaByTag || placaByText || '-',
   };
 }
 
@@ -232,9 +249,9 @@ async function publishInvoice(evt) {
   const payload = {
     numero_nota: nota.numeroNota,
     chave_nfe: nota.chave,
-    motorista: form.get('motorista'),
-    telefone_motorista: form.get('telefoneMotorista'),
-    placa: form.get('placa'),
+    motorista: nota.transporte.motorista,
+    telefone_motorista: nota.transporte.telefone,
+    placa: nota.transporte.placa,
     emitente: nota.emitente,
     emissao: nota.emissao,
     valor_total: nota.valorTotal,
@@ -246,6 +263,7 @@ async function publishInvoice(evt) {
   try {
     await dbInsert('notas', payload);
     invoicePreview.textContent = JSON.stringify(nota, null, 2);
+    renderPdfPages(nota);
     state.currentInvoice = nota;
     uploadXmlForm.reset();
     alert(`Nota publicada para conferência. (${state.mode.toUpperCase()})`);
@@ -255,6 +273,53 @@ async function publishInvoice(evt) {
   } catch (error) {
     alert(`Erro ao publicar nota: ${error.message}`);
   }
+}
+
+function renderPdfPages(nota) {
+  const page1 = qs('pdfPage1');
+  const page2 = qs('pdfPage2');
+  if (!page1 || !page2 || !nota) return;
+
+  const formatarNfe = (nfe) => String(nfe || '').padStart(9, '0').replace(/(\d{3})(\d{3})(\d{3})/, '$1.$2.$3');
+  const chave = String(nota.chave || '').replace(/\\D/g, '');
+  const chaveLegivel = chave.length === 44 ? chave.match(/.{1,4}/g).join(' ') : (nota.chave || '-');
+
+  page1.innerHTML = `
+      <div class="pdf-mini"><b>PÁGINA 1/2 - DADOS DA NF-E</b></div>
+      <div class="nf-box pdf-mini">
+        RECEBIMENTO OPERAÇÃO<br/>
+        EMISSÃO: <b>${nota.emissao || '-'}</b> | VALOR TOTAL: <b>${(nota.valorTotal || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</b>
+      </div>
+      <div class="nf-grid pdf-mini">
+        <div class="nf-box"><b>NF-e Nº</b><br>${formatarNfe(nota.numeroNota)}<br><b>Chave:</b> ${nota.chave || '-'}</div>
+        <div class="nf-box"><b>Data recebimento</b><div class="line-space"></div><b>Assinatura</b><div class="line-space"></div></div>
+      </div>
+      <div class="pdf-title">EMITENTE</div>
+      <div class="nf-box pdf-mini"><b>${nota.emitente || '-'}</b></div>
+      <div class="pdf-title">CHAVE DE ACESSO</div>
+      <div class="nf-box pdf-mini">${chaveLegivel}</div>
+      <div class="barcode-wrap"><svg id="barcodeChave"></svg></div>
+  `;
+
+  page2.innerHTML = `
+      <div class="pdf-mini"><b>PÁGINA 2/2 - CONFERÊNCIA / PALETES</b></div>
+      <h3>NF-e ${formatarNfe(nota.numeroNota)} - Motorista ${nota.transporte?.motorista || '-'}</h3>
+      <table>
+        <thead><tr><th>CÓDIGO</th><th>DESCRIÇÃO</th><th>PALETES RECEBIDOS</th></tr></thead>
+        <tbody>
+          ${(nota.items || []).map((item) => `<tr><td>${item.codigo}</td><td>${item.descricao}</td><td></td></tr>`).join('')}
+        </tbody>
+      </table>
+  `;
+
+  if (window.JsBarcode && chave.length === 44) {
+    window.JsBarcode('#barcodeChave', chave, { format: 'CODE128', width: 1.2, height: 44, displayValue: true, margin: 0 });
+  }
+
+  const form = uploadXmlForm;
+  form.elements.motorista.value = nota.transporte?.motorista || '-';
+  form.elements.telefoneMotorista.value = nota.transporte?.telefone || '-';
+  form.elements.placa.value = nota.transporte?.placa || '-';
 }
 
 async function loadInvoices() {
@@ -444,8 +509,41 @@ async function clearLogs() {
   await loadLogs();
 }
 
+async function generatePdfFromPages() {
+  const { jsPDF } = window.jspdf || {};
+  if (!jsPDF || !window.html2canvas) {
+    alert('Bibliotecas de PDF não carregadas.');
+    return;
+  }
+  const pages = [qs('pdfPage1'), qs('pdfPage2')].filter(Boolean);
+  if (!pages.length || !pages[0].innerHTML.trim()) {
+    alert('Carregue um XML antes de gerar PDF.');
+    return;
+  }
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  for (let i = 0; i < pages.length; i += 1) {
+    const canvas = await window.html2canvas(pages[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+    const img = canvas.toDataURL('image/png');
+    const prop = pdf.getImageProperties(img);
+    const margin = 6;
+    const maxW = 210 - margin * 2;
+    const maxH = 297 - margin * 2;
+    let w = maxW;
+    let h = (prop.height * w) / prop.width;
+    if (h > maxH) {
+      h = maxH;
+      w = (prop.width * h) / prop.height;
+    }
+    const x = (210 - w) / 2;
+    if (i > 0) pdf.addPage();
+    pdf.addImage(img, 'PNG', x, margin, w, h);
+  }
+  const nfe = String(state.currentInvoice?.numeroNota || 'sem-nfe').padStart(9, '0').slice(-9);
+  pdf.save(`recebimento-nfe-${nfe}.pdf`);
+}
+
 function printInvoice() {
-  window.print();
+  generatePdfFromPages();
 }
 
 function toggleChat() {
@@ -511,6 +609,19 @@ qs('btnPrintMaterials').addEventListener('click', printInvoice);
 qs('chatBubble').addEventListener('click', toggleChat);
 qs('chatForm').addEventListener('submit', sendChat);
 qs('btnLogs').addEventListener('click', () => logsContainer.scrollIntoView({ behavior: 'smooth' }));
+qs('xmlFile').addEventListener('change', async (evt) => {
+  const file = evt.target.files?.[0];
+  if (!file) return;
+  try {
+    const xmlText = await file.text();
+    const nota = parseXmlText(xmlText);
+    state.currentInvoice = nota;
+    invoicePreview.textContent = JSON.stringify(nota, null, 2);
+    renderPdfPages(nota);
+  } catch (error) {
+    console.error(error);
+  }
+});
 
 setInterval(() => {
   if (!state.user) return;

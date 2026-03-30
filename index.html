@@ -6,6 +6,9 @@
     <title>Recebimento e Conferência</title>
     <link rel="stylesheet" href="styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   </head>
   <body>
     <header>
@@ -72,14 +75,14 @@
             <label>Arquivo XML
               <input type="file" id="xmlFile" accept=".xml,text/xml" required />
             </label>
-            <label>Motorista
-              <input name="motorista" required />
+            <label>Motorista (extraído do XML)
+              <input name="motorista" readonly />
             </label>
-            <label>Telefone motorista
-              <input name="telefoneMotorista" required />
+            <label>Telefone motorista (extraído do XML)
+              <input name="telefoneMotorista" readonly />
             </label>
-            <label>Placa
-              <input name="placa" required />
+            <label>Placa (extraída do XML)
+              <input name="placa" readonly />
             </label>
             <button type="submit">Publicar nota para conferência</button>
           </form>
@@ -89,6 +92,14 @@
             <pre id="invoicePreview" class="preview">Nenhum XML carregado.</pre>
             <button id="btnPrintInvoice" type="button">Gerar PDF (Nota)</button>
             <button id="btnPrintMaterials" type="button">Gerar PDF (Materiais)</button>
+          </div>
+
+          <div class="stack">
+            <h3>Pré-visualização PDF</h3>
+            <div class="pdf-pages">
+              <div id="pdfPage1" class="pdf-page"></div>
+              <div id="pdfPage2" class="pdf-page"></div>
+            </div>
           </div>
         </div>
 

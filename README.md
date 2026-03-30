@@ -46,8 +46,8 @@ Depois abra `http://localhost:8080`.
 ## 4) Fluxo
 
 ### ADM
-- sobe XML + motorista/placa/telefone;
-- visualiza dados da nota e imprime em PDF (`Ctrl+P` do navegador);
+- sobe XML e o sistema extrai motorista/telefone/placa automaticamente;
+- visualiza dados da nota e gera PDF em 2 páginas (layout de NF + conferência);
 - publica nota para conferência;
 - acompanha conferências e logs;
 - exporta/apaga logs.

@@ -115,3 +115,33 @@ button.danger { background: #ca2e2e; }
   display: flex;
   gap: 8px;
 }
+
+.pdf-pages {
+  margin-top: 12px;
+  border-top: 1px dashed #cfd7df;
+  padding-top: 12px;
+}
+
+.pdf-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto 10px;
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 10mm;
+  box-sizing: border-box;
+}
+
+.nf-box { border: 1px solid #111; padding: 6px; margin-bottom: 8px; }
+.nf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pdf-mini { font-size: 11px; line-height: 1.35; }
+.pdf-title { font-size: 14px; font-weight: 700; margin: 8px 0; }
+.line-space { margin-top: 14px; border-top: 1px solid #111; height: 28px; }
+.barcode-wrap { text-align: center; margin: 8px 0; }
+
+@media print {
+  .toolbar, #authSection, #operacaoSection, #chatBubble, #chatPanel, #uploadXmlForm, .preview, #btnPrintInvoice, #btnPrintMaterials {
+    display: none !important;
+  }
+  .pdf-page { border: none; page-break-after: always; margin: 0; }
+}
