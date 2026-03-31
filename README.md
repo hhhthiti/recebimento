@@ -1,41 +1,40 @@
 # Sistema de Recebimento e Conferência (ADM x Operação)
 
-Aplicação web simples (HTML/CSS/JS) integrada ao Supabase para:
+Aplicação web (HTML/CSS/JS) com Supabase para operação de recebimento de NF-e.
 
-- cadastro/login por matrícula;
-- controle por perfil (`adm` e `operacao`);
-- upload e publicação de XML de NF-e;
-- conferência cega com confirmação de divergência;
-- logs com destaque em vermelho para divergência;
-- exportar e apagar logs;
-- chat por bolha flutuante entre perfis.
+## Principais pontos implementados
+
+- Login/cadastro separados por telas (matrícula + senha).
+- Perfis `adm` e `operacao` com visibilidade por permissão.
+- Upload XML no ADM com extração automática de motorista, telefone, placa e DT/remessa.
+- Conferência da operação com marcação direta de **avaria** e **faltando**.
+- NQ somente no ADM, retornando linha pronta para Excel:  
+  `Data | Placa | Remessa | NF | CD de Origem | SKU | Qtde NF | Qtd Rec. FISICO`.
+- Cargas conferidas em abas no ADM, com botão para **fechar descarga**.
+- Logs em página separada com abas (Todos, Divergências, Falta, Normais), busca e botões de baixar/apagar.
+- Destaque visual: divergência em vermelho, faltas em amarelo.
 
 ## 1) Erro "Could not find the table 'public.usuarios'"
 
-Se aparecer esse erro ao cadastrar/login, significa que as tabelas ainda não foram criadas no Supabase.
+Esse erro significa que o schema do banco ainda não está aplicado no projeto Supabase.
 
-**Como corrigir (definitivo):**
-1. Abra o Supabase > SQL Editor.
-2. Rode o script `supabase-schema.sql`.
-3. Atualize a página.
+### Correção definitiva
+1. Abrir o **SQL Editor** do Supabase.
+2. Executar o arquivo `supabase-schema.sql` (versão idempotente atualizada).
+3. Recarregar o app.
 
-**Comportamento atual do app:**
-- Se detectar ausência das tabelas, o sistema troca automaticamente para **MODO LOCAL** (localStorage), para você continuar testando sem travar.
+> O app entra em **MODO LOCAL** automaticamente quando não encontra as tabelas, para não travar testes.
 
 ## 2) Configuração Supabase
 
 1. Crie um projeto no Supabase.
-2. No SQL Editor, rode o script `supabase-schema.sql`.
-3. Configure RLS/policies conforme sua necessidade de segurança.
-4. (Opcional) crie edge functions:
-   - `send-sms` para envio da nova senha via SMS;
-   - `send-email` para envio da nova senha por email.
-
-> **Importante:** este MVP salva senha em texto puro para simplificar e atender ao fluxo pedido. Em produção, usar autenticação nativa do Supabase Auth e hash de senha.
+2. Rode `supabase-schema.sql` no SQL Editor.
+3. Ajuste RLS/policies conforme sua segurança.
+4. (Opcional) configure funções para recuperação de senha:
+   - `send-sms` (Twilio);
+   - `send-email` (Resend/SMTP).
 
 ## 3) Executar localmente
-
-Use qualquer servidor estático. Exemplo:
 
 ```bash
 python3 -m http.server 8080
@@ -43,42 +42,32 @@ python3 -m http.server 8080
 
 Depois abra `http://localhost:8080`.
 
-## 4) Fluxo
+## 4) Fluxo por perfil
 
 ### ADM
-- sobe XML e o sistema extrai motorista/telefone/placa automaticamente;
-- visualiza dados da nota e gera PDF em 2 páginas (layout de NF + conferência);
-- publica nota para conferência;
-- acompanha conferências e logs;
-- exporta/apaga logs.
+- Publica XML para conferência;
+- acompanha cargas por abas (abertas/conferidas/NQ);
+- fecha descarga;
+- acessa página exclusiva de logs com busca, exportação e limpeza;
+- copia linhas NQ para Excel.
 
 ### Operação
-- seleciona nota por `numero/placa`;
-- confere sem ver quantidade esperada (conferência cega);
-- confirma envio;
-- se houver divergência, sistema pede confirmação e salva observação;
-- possui área **NQ** para registrar avaria/falta e gerar linha pronta para Excel.
+- Seleciona nota publicada;
+- informa quantidades conferidas;
+- marca se veio avariado e se veio faltando;
+- envia conferência para retorno do ADM.
 
-## 5) Sobre Terabox
+## 5) SMS e E-mail
 
-Não foi incluída integração direta com Terabox neste MVP.
-O sistema mantém logs no banco Supabase e exportação em JSON.
+Se SMS/e-mail não funcionar, normalmente faltam as edge functions no projeto Supabase.
 
-## 6) SMS e E-mail (recuperação de senha)
+Exemplo:
+```bash
+supabase functions deploy send-email
+supabase functions deploy send-sms
+supabase secrets set CHAVE=valor
+```
 
-Se SMS/E-mail não estiver funcionando, não é erro de frontend: falta configurar as Edge Functions no Supabase.
+## 6) Observação de segurança
 
-### Exemplo de setup
-1. Criar `send-email` (com Resend ou SMTP) em `supabase/functions/send-email`.
-2. Criar `send-sms` (com Twilio) em `supabase/functions/send-sms`.
-3. Publicar com:
-   ```bash
-   supabase functions deploy send-email
-   supabase functions deploy send-sms
-   ```
-4. Definir secrets (`RESEND_API_KEY` ou `TWILIO_*`) com:
-   ```bash
-   supabase secrets set CHAVE=valor
-   ```
-
-Sem essas funções, o sistema mostra mensagem orientando a configuração.
+Este MVP mantém senha em texto puro para simplicidade operacional. Para produção, usar Supabase Auth + hash de senha.
