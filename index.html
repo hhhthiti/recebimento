@@ -12,58 +12,66 @@
   </head>
   <body>
     <header>
-      <h1>Recebimento de Notas</h1>
+      <div class="brand">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/JSL_SA_logo.svg/320px-JSL_SA_logo.svg.png" alt="Logo JSL" />
+        <h1>Recebimento de Notas</h1>
+      </div>
       <div class="toolbar" id="globalToolbar">
+        <button id="btnDensity">Modo tablet</button>
         <button id="btnLogs">Logs</button>
-        <button id="btnExportLogs">Exportar logs</button>
-        <button id="btnClearLogs" class="danger">Apagar logs</button>
+        <button id="btnExportLogs" class="adm-only">Exportar logs</button>
+        <button id="btnClearLogs" class="danger adm-only">Apagar logs</button>
         <button id="btnLogout">Sair</button>
       </div>
     </header>
 
     <main>
       <section id="authSection" class="card">
-        <h2>Cadastro e Login</h2>
-        <div class="grid two">
-          <form id="registerForm" class="stack">
-            <h3>Cadastrar usuário</h3>
-            <label>Matrícula (login)
-              <input required name="matricula" />
-            </label>
-            <label>Senha
-              <input required name="senha" type="password" />
-            </label>
-            <label>Perfil
-              <select name="role" required>
-                <option value="operacao">Operação</option>
-                <option value="adm">ADM</option>
-              </select>
-            </label>
-            <label>Email
-              <input name="email" type="email" />
-            </label>
-            <label>Telefone
-              <input name="telefone" placeholder="5511999999999" />
-            </label>
-            <button type="submit">Cadastrar</button>
-          </form>
-
-          <form id="loginForm" class="stack">
-            <h3>Entrar</h3>
-            <label>Matrícula
-              <input required name="matricula" />
-            </label>
-            <label>Senha
-              <input required name="senha" type="password" />
-            </label>
-            <button type="submit">Entrar</button>
-            <div class="recovery">
-              <strong>Recuperar senha</strong>
-              <button type="button" id="recoverSms">Via SMS</button>
-              <button type="button" id="recoverEmail">Via Email</button>
-            </div>
-          </form>
+        <h2>Acesso</h2>
+        <div class="auth-choice">
+          <button id="showLogin" type="button">Entrar</button>
+          <button id="showRegister" type="button">Cadastrar</button>
         </div>
+
+        <form id="loginForm" class="stack auth-form">
+          <h3>Entrar</h3>
+          <label>Matrícula
+            <input required name="matricula" />
+          </label>
+          <label>Senha
+            <input required name="senha" type="password" />
+          </label>
+          <button type="submit">Entrar</button>
+          <div class="recovery">
+            <strong>Recuperar senha</strong>
+            <button type="button" id="recoverSms">Via SMS</button>
+            <button type="button" id="recoverEmail">Via Email</button>
+          </div>
+          <p class="hint">Para SMS/e-mail funcionar no Supabase, configure as edge functions <code>send-sms</code> e <code>send-email</code>.</p>
+        </form>
+
+        <form id="registerForm" class="stack auth-form hidden">
+          <h3>Cadastrar usuário</h3>
+          <label>Matrícula (login)
+            <input required name="matricula" />
+          </label>
+          <label>Senha
+            <input required name="senha" type="password" />
+          </label>
+          <label>Perfil
+            <select name="role" required>
+              <option value="operacao">Operação</option>
+              <option value="adm">ADM</option>
+            </select>
+          </label>
+          <label>Email
+            <input name="email" type="email" />
+          </label>
+          <label>Telefone
+            <input name="telefone" placeholder="5511999999999" />
+          </label>
+          <button type="submit">Cadastrar</button>
+        </form>
       </section>
 
       <section id="adminSection" class="card hidden">
@@ -88,7 +96,7 @@
           </form>
 
           <div class="stack">
-            <h3>Visualização da nota</h3>
+            <h3>Visualização da nota (campos extras XML)</h3>
             <pre id="invoicePreview" class="preview">Nenhum XML carregado.</pre>
             <button id="btnPrintInvoice" type="button">Gerar PDF (Nota)</button>
             <button id="btnPrintMaterials" type="button">Gerar PDF (Materiais)</button>
@@ -126,7 +134,7 @@
       </section>
     </main>
 
-    <button id="chatBubble" class="chat-bubble">💬</button>
+    <button id="chatBubble" class="chat-bubble hidden">💬</button>
     <section id="chatPanel" class="chat-panel hidden">
       <h3>Chat</h3>
       <div id="chatMessages" class="chat-messages"></div>

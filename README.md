@@ -62,3 +62,22 @@ Depois abra `http://localhost:8080`.
 
 Não foi incluída integração direta com Terabox neste MVP.
 O sistema mantém logs no banco Supabase e exportação em JSON.
+
+## 6) SMS e E-mail (recuperação de senha)
+
+Se SMS/E-mail não estiver funcionando, não é erro de frontend: falta configurar as Edge Functions no Supabase.
+
+### Exemplo de setup
+1. Criar `send-email` (com Resend ou SMTP) em `supabase/functions/send-email`.
+2. Criar `send-sms` (com Twilio) em `supabase/functions/send-sms`.
+3. Publicar com:
+   ```bash
+   supabase functions deploy send-email
+   supabase functions deploy send-sms
+   ```
+4. Definir secrets (`RESEND_API_KEY` ou `TWILIO_*`) com:
+   ```bash
+   supabase secrets set CHAVE=valor
+   ```
+
+Sem essas funções, o sistema mostra mensagem orientando a configuração.
