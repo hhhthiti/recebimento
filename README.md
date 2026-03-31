@@ -56,7 +56,8 @@ Depois abra `http://localhost:8080`.
 - seleciona nota por `numero/placa`;
 - confere sem ver quantidade esperada (conferência cega);
 - confirma envio;
-- se houver divergência, sistema pede confirmação e salva observação.
+- se houver divergência, sistema pede confirmação e salva observação;
+- possui área **NQ** para registrar avaria/falta e gerar linha pronta para Excel.
 
 ## 5) Sobre Terabox
 

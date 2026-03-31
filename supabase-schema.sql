@@ -54,3 +54,19 @@ create table if not exists chats (
   mensagem text not null,
   created_at timestamptz default now()
 );
+
+create table if not exists nq_reports (
+  id bigint generated always as identity primary key,
+  data_ref timestamptz not null default now(),
+  placa text not null,
+  remessa text not null,
+  nf text not null,
+  cd_origem text not null default 'Mogi',
+  sku text not null,
+  qtde_nf numeric not null,
+  qtd_rec_fisico numeric not null,
+  avaria boolean default false,
+  faltando boolean default false,
+  criado_por text not null,
+  created_at timestamptz default now()
+);
