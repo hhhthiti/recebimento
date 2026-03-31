@@ -468,12 +468,25 @@ async function loadNqReports() {
   });
 }
 
-async function uploadNqTxtToTerabox() {
-  if (!state.user || state.user.role !== 'adm') return alert('Apenas ADM pode enviar NQ ao TeraBox.');
-  if (!state.nqLines.length) return alert('Sem linhas NQ para enviar.');
-  const header = 'Data\tPlaca\tRemessa\tNF\tCD de Origem\tSKU\tQtde NF\tQtd Rec. FISICO';
-  const content = `${header}\n${state.nqLines.join('\n')}`;
-  const fileName = `nq-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+function formatFileTimestamp(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+}
+
+async function guardarLogsNoTerabox() {
+  if (!state.user || state.user.role !== 'adm') return alert('Apenas ADM pode guardar logs no TeraBox.');
+  if (!state.logs.length) return alert('Sem logs para guardar.');
+  const header = 'DataHora\tUsuario\tTipo\tCodigo\tQtdDivergencia\tMensagem';
+  const lines = state.logs.map((log) => [
+    new Date(log.created_at).toISOString(),
+    log.usuario_matricula || '-',
+    log.tipo || '-',
+    log.codigo || '-',
+    log.quantidade_divergencia ?? 0,
+    (log.mensagem || '').replace(/\n/g, ' ').trim(),
+  ].join('\t'));
+  const content = `${header}\n${lines.join('\n')}`;
+  const fileName = `logs-carregamento-${formatFileTimestamp()}.txt`;
   try {
     const resp = await fetch('http://localhost:3000/exportar-txt-terabox', {
       method: 'POST',
@@ -482,9 +495,9 @@ async function uploadNqTxtToTerabox() {
     });
     const data = await resp.json();
     if (!resp.ok || !data.success) throw new Error(data.error || 'Falha no backend');
-    alert(`TXT enviado ao TeraBox com sucesso: ${fileName}`);
+    alert(`Logs guardados no TeraBox com sucesso: ${fileName}`);
   } catch (error) {
-    alert(`Falha ao enviar TXT ao TeraBox. Verifique backend Node e autenticação.\nErro: ${error.message}`);
+    alert(`Falha ao guardar logs no TeraBox. Verifique backend Node e autenticação.\nErro: ${error.message}`);
   }
 }
 
@@ -622,7 +635,7 @@ qs('chatForm').addEventListener('submit', sendChat);
 qs('btnLogs').addEventListener('click', () => setLogsPage(true));
 qs('btnBackAdmin').addEventListener('click', () => setLogsPage(false));
 qs('logSearch').addEventListener('input', renderLogs);
-qs('btnUploadNqTerabox')?.addEventListener('click', uploadNqTxtToTerabox);
+qs('btnGuardarTerabox')?.addEventListener('click', guardarLogsNoTerabox);
 
 qs('btnDensity').addEventListener('click', () => {
   document.body.classList.toggle('tablet-mode');

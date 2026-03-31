@@ -60,9 +60,10 @@ Depois abra `http://localhost:8080`.
    ```
 4. Faça autenticação no TeraBox:
    - abra `http://localhost:3000/auth/terabox`
-5. No painel ADM, aba **NQ Excel**, clique em **Enviar TXT NQ para TeraBox**.
+5. No painel ADM, página **Logs**, clique em **Guardar** para enviar o TXT de logs ao TeraBox.
 
 > Fluxo implementado no backend: OAuth (authorization code) → pre-upload → upload da parte → create file.
+> Nome do arquivo: `logs-carregamento-YYYYMMDD-HHMMSS.txt`.
 
 ## 4) Fluxo por perfil
 
