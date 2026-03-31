@@ -42,6 +42,28 @@ python3 -m http.server 8080
 
 Depois abra `http://localhost:8080`.
 
+## 3.1) Backend Node para TeraBox (upload de TXT)
+
+1. Copie o arquivo de ambiente:
+   ```bash
+   cp .env.example .env
+   ```
+2. Preencha no `.env`:
+   - `TERABOX_CLIENT_ID`
+   - `TERABOX_CLIENT_SECRET`
+   - `TERABOX_REDIRECT_URI`
+   - `TERABOX_TARGET_DIR`
+3. Instale dependências e suba o backend:
+   ```bash
+   npm install
+   npm start
+   ```
+4. Faça autenticação no TeraBox:
+   - abra `http://localhost:3000/auth/terabox`
+5. No painel ADM, aba **NQ Excel**, clique em **Enviar TXT NQ para TeraBox**.
+
+> Fluxo implementado no backend: OAuth (authorization code) → pre-upload → upload da parte → create file.
+
 ## 4) Fluxo por perfil
 
 ### ADM

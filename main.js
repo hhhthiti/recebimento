@@ -7,6 +7,7 @@ const state = {
   currentInvoice: null,
   invoices: [],
   logs: [],
+  nqLines: [],
   mode: 'supabase',
   authView: 'login',
   adminTab: 'abertas',
@@ -448,8 +449,10 @@ async function loadNqReports() {
   if (!adminNqContainer) return;
   const data = await dbSelect('nq_reports', { orderBy: 'data_ref' });
   adminNqContainer.innerHTML = '';
+  state.nqLines = [];
   (data || []).forEach((r) => {
     const line = [new Date(r.data_ref).toLocaleDateString('pt-BR'), r.placa || '-', r.remessa || '-', r.nf || '-', r.cd_origem || 'Mogi', r.sku || '-', r.qtde_nf ?? 0, r.qtd_rec_fisico ?? 0].join('\t');
+    state.nqLines.push(line);
     const div = document.createElement('div');
     div.className = `log ${r.faltando ? 'faltando' : ''} ${r.avaria ? 'divergente' : ''}`;
     div.innerHTML = `<code>${line}</code><button class="copy-line" data-copy="${encodeURIComponent(line)}">Copiar linha</button>`;
@@ -463,6 +466,26 @@ async function loadNqReports() {
       setTimeout(() => { btn.textContent = 'Copiar linha'; }, 1200);
     });
   });
+}
+
+async function uploadNqTxtToTerabox() {
+  if (!state.user || state.user.role !== 'adm') return alert('Apenas ADM pode enviar NQ ao TeraBox.');
+  if (!state.nqLines.length) return alert('Sem linhas NQ para enviar.');
+  const header = 'Data\tPlaca\tRemessa\tNF\tCD de Origem\tSKU\tQtde NF\tQtd Rec. FISICO';
+  const content = `${header}\n${state.nqLines.join('\n')}`;
+  const fileName = `nq-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+  try {
+    const resp = await fetch('http://localhost:3000/exportar-txt-terabox', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName, content }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) throw new Error(data.error || 'Falha no backend');
+    alert(`TXT enviado ao TeraBox com sucesso: ${fileName}`);
+  } catch (error) {
+    alert(`Falha ao enviar TXT ao TeraBox. Verifique backend Node e autenticação.\nErro: ${error.message}`);
+  }
 }
 
 async function logAction(tipo, codigo, quantidadeDivergencia, mensagem, divergente) {
@@ -599,6 +622,7 @@ qs('chatForm').addEventListener('submit', sendChat);
 qs('btnLogs').addEventListener('click', () => setLogsPage(true));
 qs('btnBackAdmin').addEventListener('click', () => setLogsPage(false));
 qs('logSearch').addEventListener('input', renderLogs);
+qs('btnUploadNqTerabox')?.addEventListener('click', uploadNqTxtToTerabox);
 
 qs('btnDensity').addEventListener('click', () => {
   document.body.classList.toggle('tablet-mode');
