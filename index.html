@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Recebimento e Conferência</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/JSL_SA_logo.svg/320px-JSL_SA_logo.svg.png" alt="Logo JSL" />
+        <h1>Recebimento de Notas</h1>
+      </div>
+      <div class="toolbar" id="globalToolbar">
+        <button id="btnDensity">Modo tablet</button>
+        <button id="btnLogs" class="hidden">Página de logs</button>
+        <button id="btnBackAdmin" class="hidden">Voltar ao ADM</button>
+        <button id="btnLogout">Sair</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="authSection" class="card">
+        <h2>Acesso</h2>
+        <div class="auth-choice">
+          <button id="showLogin" type="button">Entrar</button>
+          <button id="showRegister" type="button">Cadastrar</button>
+        </div>
+
+        <form id="loginForm" class="stack auth-form">
+          <h3>Entrar</h3>
+          <label>Matrícula<input required name="matricula" /></label>
+          <label>Senha<input required name="senha" type="password" /></label>
+          <button type="submit">Entrar</button>
+          <div class="recovery">
+            <strong>Recuperar senha</strong>
+            <button type="button" id="recoverSms">Via SMS</button>
+            <button type="button" id="recoverEmail">Via Email</button>
+          </div>
+          <p class="hint">Para SMS/e-mail no Supabase, configure as edge functions <code>send-sms</code> e <code>send-email</code>.</p>
+        </form>
+
+        <form id="registerForm" class="stack auth-form hidden">
+          <h3>Cadastrar usuário</h3>
+          <label>Matrícula (login)<input required name="matricula" /></label>
+          <label>Senha<input required name="senha" type="password" /></label>
+          <label>Perfil
+            <select name="role" required>
+              <option value="operacao">Operação</option>
+              <option value="adm">ADM</option>
+            </select>
+          </label>
+          <label>Email<input name="email" type="email" /></label>
+          <label>Telefone<input name="telefone" placeholder="5511999999999" /></label>
+          <button type="submit">Cadastrar</button>
+        </form>
+      </section>
+
+      <section id="adminSection" class="card hidden">
+        <h2>Painel ADM</h2>
+
+        <div class="tabs">
+          <button class="tab-btn active" data-admin-tab="abertas">Cargas abertas</button>
+          <button class="tab-btn" data-admin-tab="conferidas">Cargas conferidas</button>
+          <button class="tab-btn" data-admin-tab="nq">NQ Excel</button>
+        </div>
+
+        <div id="tabAbertas" class="tab-content">
+          <div class="grid two">
+            <form id="uploadXmlForm" class="stack">
+              <h3>Subir XML de NF-e</h3>
+              <label>Arquivo XML<input type="file" id="xmlFile" accept=".xml,text/xml" required /></label>
+              <label>Motorista (extraído do XML)<input name="motorista" readonly /></label>
+              <label>Telefone motorista (extraído do XML)<input name="telefoneMotorista" readonly /></label>
+              <label>Placa (extraída do XML)<input name="placa" readonly /></label>
+              <button type="submit">Publicar nota para conferência</button>
+            </form>
+
+            <div class="stack">
+              <h3>Visualização da nota</h3>
+              <pre id="invoicePreview" class="preview">Nenhum XML carregado.</pre>
+              <button id="btnPrintInvoice" type="button">Gerar PDF (2 páginas)</button>
+            </div>
+
+            <div class="stack">
+              <h3>Pré-visualização PDF</h3>
+              <div class="pdf-pages">
+                <div id="pdfPage1" class="pdf-page"></div>
+                <div id="pdfPage2" class="pdf-page"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tabConferidas" class="tab-content hidden">
+          <h3>Conferências recebidas</h3>
+          <div id="adminConferencias"></div>
+        </div>
+
+        <div id="tabNq" class="tab-content hidden">
+          <h3>NQ para Excel (linha)</h3>
+          <p class="hint">A operação só marca <strong>avaria</strong> e <strong>falta</strong>. Aqui no ADM você copia as linhas prontas para Excel.</p>
+          <div id="adminNqContainer"></div>
+        </div>
+      </section>
+
+      <section id="logsSection" class="card hidden">
+        <h2>Página de Logs</h2>
+        <div class="toolbar logs-toolbar">
+          <input id="logSearch" placeholder="Pesquisar por matrícula, NF, código..." />
+          <button id="btnExportLogs">Baixar logs</button>
+          <button id="btnGuardarTerabox">Guardar</button>
+          <button id="btnClearLogs" class="danger">Apagar logs</button>
+        </div>
+        <div class="tabs">
+          <button class="tab-btn active" data-log-filter="all">Todos</button>
+          <button class="tab-btn" data-log-filter="divergente">Divergências</button>
+          <button class="tab-btn" data-log-filter="falta">Falta</button>
+          <button class="tab-btn" data-log-filter="ok">Normais</button>
+        </div>
+        <div id="logsContainer"></div>
+      </section>
+
+      <section id="operacaoSection" class="card hidden">
+        <h2>Painel Operação</h2>
+        <div class="stack">
+          <label>Escolha uma nota publicada<select id="notaSelect"></select></label>
+          <div id="notaInfo"></div>
+          <form id="conferenciaForm" class="stack"></form>
+        </div>
+      </section>
+    </main>
+
+    <button id="chatBubble" class="chat-bubble hidden">💬</button>
+    <section id="chatPanel" class="chat-panel hidden">
+      <h3>Chat</h3>
+      <div id="chatMessages" class="chat-messages"></div>
+      <form id="chatForm" class="chat-form">
+        <input id="chatInput" placeholder="Digite sua mensagem" required />
+        <button type="submit">Enviar</button>
+      </form>
+    </section>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
