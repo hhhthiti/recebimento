@@ -62,6 +62,14 @@ Depois abra `http://localhost:8080`.
    - abra `http://localhost:3000/auth/terabox`
 5. No painel ADM, página **Logs**, clique em **Guardar** para enviar o TXT de logs ao TeraBox.
 
+### Usando somente Render (sem localhost)
+Se front e backend estiverem em serviços Render/Netlify, não use `localhost`.
+
+1. Backend no Render: copie a URL pública, ex.: `https://recebimento-api.onrender.com`.
+2. Abra o front uma vez com:
+   `https://seu-front.onrender.com/?backend_url=https://recebimento-api.onrender.com`
+3. O sistema salva essa URL em `localStorage` (`rcv-backend-url`) e o botão **Guardar** passa a usar o backend remoto.
+
 > Fluxo implementado no backend: OAuth (authorization code) → pre-upload → upload da parte → create file.
 > Nome do arquivo: `logs-carregamento-YYYYMMDD-HHMMSS.txt`.
 

@@ -1,6 +1,12 @@
 const SUPABASE_URL = 'https://qkdonbbvafdbooyjjmwb.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_JYiZBz-B3k7pdY3Ivobn0w_Jz7zIWNx';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const BACKEND_BASE_URL = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const fromQuery = params.get('backend_url');
+  if (fromQuery) localStorage.setItem('rcv-backend-url', fromQuery);
+  return localStorage.getItem('rcv-backend-url') || window.location.origin;
+})();
 
 const state = {
   user: null,
@@ -577,7 +583,7 @@ async function guardarLogsNoTerabox() {
   const content = `${header}\n${lines.join('\n')}`;
   const fileName = `logs-carregamento-${formatFileTimestamp()}.txt`;
   try {
-    const resp = await fetch('http://localhost:3000/exportar-txt-terabox', {
+    const resp = await fetch(`${BACKEND_BASE_URL}/exportar-txt-terabox`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileName, content }),
@@ -586,7 +592,7 @@ async function guardarLogsNoTerabox() {
     if (!resp.ok || !data.success) throw new Error(data.error || 'Falha no backend');
     alert(`Logs guardados no TeraBox com sucesso: ${fileName}`);
   } catch (error) {
-    alert(`Falha ao guardar logs no TeraBox. Verifique backend Node e autenticação.\nErro: ${error.message}`);
+    alert(`Falha ao guardar logs no TeraBox. Verifique backend/URL e autenticação.\nBackend atual: ${BACKEND_BASE_URL}\nErro: ${error.message}`);
   }
 }
 
