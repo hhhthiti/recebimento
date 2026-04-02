@@ -1,0 +1,58 @@
+:root { color-scheme: light; font-family: Arial, sans-serif; }
+body { margin: 0; background: #f5f7fb; }
+header { background: #0f2747; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
+.brand { display:flex; gap:12px; align-items:center; }
+.brand img { height: 34px; background:#fff; border-radius:6px; padding:4px; }
+main { padding: 20px; }
+.card { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
+.grid.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+label { font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+input, select, textarea, button { padding: 8px; border-radius: 8px; border: 1px solid #c4c9d4; }
+button { cursor: pointer; border: none; background: #2766cf; color: white; }
+button.danger { background: #ca2e2e; }
+.toolbar { display: flex; gap: 8px; align-items: center; }
+.hidden { display: none !important; }
+.preview { max-height: 320px; overflow: auto; padding: 10px; background: #eff3fb; border-radius: 8px; }
+.log, .conferencia { padding: 10px; border: 1px solid #dde2eb; border-radius: 8px; margin-bottom: 8px; }
+.divergente { border-color: #e54343; background: #fff0f0; }
+.faltando { border-color: #d7a700; background: #fff8d9; }
+.item { border: 1px solid #e2e6ef; border-radius: 8px; padding: 10px; }
+
+.tabs { display: flex; gap: 8px; margin: 8px 0 14px; flex-wrap: wrap; }
+.tab-btn { background: #e9eef8; color: #203254; border: 1px solid #b8c8e8; }
+.tab-btn.active { background: #2766cf; color: #fff; border-color: #2766cf; }
+.copy-line { margin-left: 8px; background: #1f8a3b; }
+.btn-close { background: #2e7d32; }
+.logs-toolbar input { min-width: 280px; flex: 1; }
+
+.auth-choice { display:flex; gap:8px; margin-bottom:12px; }
+.auth-form { max-width: 460px; }
+.hint { margin:0; font-size:12px; color:#526177; }
+.warning { background: #fff3cd; border: 1px solid #ffcf66; color: #7d5900; padding: 8px; border-radius: 8px; }
+.counter { margin: 0 0 12px; background: #e8f3ff; border: 1px solid #bcd6f8; color: #113764; padding: 8px 10px; border-radius: 8px; font-weight: 700; }
+.unit-choice { background: #fff8d9; border: 2px solid #d7a700; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+
+.chat-bubble { position: fixed; right: 20px; bottom: 20px; border-radius: 999px; width: 54px; height: 54px; font-size: 20px; }
+.chat-panel { position: fixed; right: 20px; bottom: 84px; width: 320px; background: white; border: 1px solid #d8deea; border-radius: 8px; padding: 12px; }
+.chat-messages { min-height: 220px; max-height: 220px; overflow: auto; background: #f2f5fb; border-radius: 8px; padding: 8px; }
+.chat-messages p { margin: 4px 0; padding: 6px; border-radius: 6px; }
+.chat-messages p.mine { background: #ddebff; }
+.chat-messages p.theirs { background: #fff; }
+.chat-form { margin-top: 8px; display: flex; gap: 8px; }
+
+.pdf-pages { margin-top: 12px; border-top: 1px dashed #cfd7df; padding-top: 12px; }
+.pdf-page { width: 210mm; min-height: 297mm; margin: 0 auto 10px; background: #fff; border: 1px solid #ddd; padding: 10mm; box-sizing: border-box; }
+.nf-box { border: 1px solid #111; padding: 6px; margin-bottom: 8px; }
+.nf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pdf-mini { font-size: 11px; line-height: 1.35; }
+.barcode-wrap { text-align: center; margin: 8px 0; }
+
+body.tablet-mode .card { max-width: 900px; margin-left: auto; margin-right: auto; }
+body.tablet-mode .grid.two { grid-template-columns: 1fr; }
+body.tablet-mode .pdf-page { width: 100%; min-height: auto; }
+
+@media print {
+  .toolbar, #authSection, #operacaoSection, #chatBubble, #chatPanel, #uploadXmlForm, .preview, #btnPrintInvoice { display: none !important; }
+  .pdf-page { border: none; page-break-after: always; margin: 0; width: 100%; }
+}
