@@ -439,7 +439,7 @@ function renderOperacaoInvoice(notaId) {
   (nota.itens_json || []).forEach((item) => {
     const code = normalizeProductCode(item.codigo);
     const fardosPorPalete = getFardosPorPalete(code);
-    conferenciaForm.insertAdjacentHTML('beforeend', `<div class="item"><p><strong>${code}</strong> - ${item.descricao}</p><p class="hint">NF: ${item.quantidadeFardo} fardos | ${fardosPorPalete} fardos por palete</p><label>Quantidade conferida<input type="number" step="0.01" min="0" required name="${code}" /></label></div>`);
+    conferenciaForm.insertAdjacentHTML('beforeend', `<div class="item"><p><strong>${code}</strong> - ${item.descricao}</p><p class="hint">${fardosPorPalete} fardos por palete</p><label>Quantidade conferida<input type="number" step="0.01" min="0" required name="${code}" /></label></div>`);
   });
 
   conferenciaForm.insertAdjacentHTML('beforeend', '<label>Observação<textarea name="observacao" placeholder="Opcional"></textarea></label><button type="submit">Enviar conferência</button>');
