@@ -212,8 +212,7 @@ function extractTransportInfo(xml, infCpl) {
   const text = (tag) => xml.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
   const transporta = xml.getElementsByTagName('transporta')[0];
   const motoristaInfCpl = String(infCpl || '').match(/(?:Motorista|Condutor)\s*:?\s*([A-ZÀ-Ú0-9 .'-]{3,60})/i)?.[1]?.trim();
-  const transportaNome = transporta?.getElementsByTagName('xNome')[0]?.textContent?.trim() || '';
-  const motorista = motoristaInfCpl || text('xContato') || transportaNome || '-';
+  const motorista = motoristaInfCpl || text('xContato') || '-';
   const telefoneTag = text('fone') || transporta?.getElementsByTagName('fone')[0]?.textContent?.trim() || '';
   const telefoneText = String(infCpl || '').match(/(\+?\d{10,14})/)?.[1] || '';
   const placaTag = text('placa') || text('xPlaca') || '';
@@ -411,9 +410,9 @@ async function loadInvoices() {
   notaSelect.innerHTML = '';
   let visibleInvoices = allInvoices;
   if (state.user?.role === 'operacao') {
-    const minhasConferencias = await dbSelect('conferencias', { eq: { conferente_matricula: state.user.matricula } }) || [];
-    const conferidasPorMim = new Set(minhasConferencias.map((c) => String(c.nota_id)));
-    visibleInvoices = allInvoices.filter((n) => n.reaberta || !conferidasPorMim.has(String(n.id)));
+    const todasConferencias = await dbSelect('conferencias') || [];
+    const notasJaConferidas = new Set(todasConferencias.map((c) => String(c.nota_id)));
+    visibleInvoices = allInvoices.filter((n) => n.reaberta || !notasJaConferidas.has(String(n.id)));
     if (operacaoStats) operacaoStats.textContent = `Notas pendentes para você: ${visibleInvoices.length} de ${allInvoices.length}`;
   }
 
@@ -454,17 +453,28 @@ function renderOperacaoInvoice(notaId) {
   (nota.itens_json || []).forEach((item) => {
     const code = normalizeProductCode(item.codigo);
     const fardosPorPalete = getFardosPorPalete(code);
-    conferenciaForm.insertAdjacentHTML('beforeend', `<div class="item"><p><strong>${code}</strong> - ${item.descricao}</p><p class="hint">${fardosPorPalete} fardos por palete</p><label>Quantidade conferida<input type="number" step="0.01" min="0" required name="${code}" /></label></div>`);
+    conferenciaForm.insertAdjacentHTML('beforeend', `<div class="item"><p><strong>${code}</strong> - ${item.descricao}</p><p class="hint">${fardosPorPalete} fardos por palete</p><label>Quantidade conferida<input type="number" step="0.01" min="0" required name="${code}" /></label><label class="fracao-fardo hidden" data-fracao="${code}">Fardos fracionados (quando conferir em paletes)<input type="number" step="0.01" min="0" name="${code}__fracao" value="0" /></label></div>`);
   });
 
   conferenciaForm.insertAdjacentHTML('beforeend', '<label>Observação<textarea name="observacao" placeholder="Opcional"></textarea></label><button type="submit">Enviar conferência</button>');
   conferenciaForm.dataset.notaId = nota.id;
+
+  conferenciaForm.querySelectorAll('input[name="unidade_conferencia"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      const paleteMode = conferenciaForm.querySelector('input[name="unidade_conferencia"]:checked')?.value === 'palete';
+      conferenciaForm.querySelectorAll('[data-fracao]').forEach((el) => el.classList.toggle('hidden', !paleteMode));
+    });
+  });
 }
 
 async function submitConferencia(evt) {
   evt.preventDefault();
   const nota = state.invoices.find((n) => String(n.id) === String(conferenciaForm.dataset.notaId));
   if (!nota) return;
+  const existingForNote = await dbSelect('conferencias', { eq: { nota_id: nota.id } }) || [];
+  if (existingForNote.length && !nota.reaberta) {
+    return alert('Esta nota já foi conferida por outro usuário. Apenas notas reabertas pelo ADM podem ser conferidas novamente.');
+  }
   if (!confirm('Tem certeza que deseja terminar a conferência?')) return;
 
   const form = new FormData(conferenciaForm);
@@ -478,13 +488,15 @@ async function submitConferencia(evt) {
   const conferidos = (nota.itens_json || []).map((item) => {
     const code = normalizeProductCode(item.codigo);
     const informadoRaw = Number(form.get(code) || 0);
+    const fracaoFardo = Number(form.get(`${code}__fracao`) || 0);
     const fatorPalete = getFardosPorPalete(code);
-    const informadoFardo = unidade === 'palete' ? Number((informadoRaw * fatorPalete).toFixed(2)) : informadoRaw;
+    const informadoFardo = unidade === 'palete' ? Number(((informadoRaw * fatorPalete) + fracaoFardo).toFixed(2)) : informadoRaw;
     return {
       ...item,
       codigo: code,
       conferido: informadoFardo,
       conferido_raw: informadoRaw,
+      fracao_fardos: fracaoFardo,
       unidade_conferencia: unidade,
       fator_palete: fatorPalete,
       divergencia: Number((informadoFardo - Number(item.quantidadeFardo)).toFixed(2)),
