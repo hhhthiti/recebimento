@@ -18,7 +18,7 @@ const state = {
   authView: 'login',
   adminTab: 'abertas',
   logFilter: 'all',
-  portariaMap: JSON.parse(localStorage.getItem('rcv-portaria-map') || '{}'),
+  recebimentoMap: JSON.parse(localStorage.getItem('rcv-recebimento-map') || '{}'),
 };
 
 const localDb = {
@@ -42,7 +42,7 @@ const logsContainer = qs('logsContainer');
 const adminConferencias = qs('adminConferencias');
 const adminNqContainer = qs('adminNqContainer');
 const adminDescargasContainer = qs('adminDescargasContainer');
-const adminPortariaContainer = qs('adminPortariaContainer');
+const adminRecebimentoContainer = qs('adminRecebimentoContainer');
 const notaInfo = qs('notaInfo');
 const duplicateWarning = qs('duplicateWarning');
 const operacaoStats = qs('operacaoStats');
@@ -192,7 +192,7 @@ function setAdminTab(tab) {
   qs('tabConferidas').classList.toggle('hidden', tab !== 'conferidas');
   qs('tabNq').classList.toggle('hidden', tab !== 'nq');
   qs('tabPlanilha').classList.toggle('hidden', tab !== 'planilha');
-  qs('tabPortaria').classList.toggle('hidden', tab !== 'portaria');
+  qs('tabRecebimento').classList.toggle('hidden', tab !== 'recebimento');
 }
 
 function setLogsPage(active) {
@@ -208,16 +208,25 @@ function extractDocumentoSap(infCpl) {
   return String(infCpl || '').match(/(?:Doc\.?\s*Referencia|Documento\s*SAP)\s*:?\s*([0-9A-Z]+)/i)?.[1] || '-';
 }
 
+function composeDateTimeFromHour(hourText) {
+  if (!hourText) return new Date().toISOString();
+  const now = new Date();
+  const [h, m] = String(hourText).split(':').map(Number);
+  now.setHours(Number.isFinite(h) ? h : now.getHours(), Number.isFinite(m) ? m : now.getMinutes(), 0, 0);
+  return now.toISOString();
+}
+
 function extractTransportInfo(xml, infCpl) {
   const text = (tag) => xml.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
   const transporta = xml.getElementsByTagName('transporta')[0];
   const motoristaInfCpl = String(infCpl || '').match(/(?:Motorista|Condutor)\s*:?\s*([A-ZÀ-Ú0-9 .'-]{3,60})/i)?.[1]?.trim();
   const motorista = motoristaInfCpl || text('xContato') || '-';
+  const transportadora = transporta?.getElementsByTagName('xNome')[0]?.textContent?.trim() || '-';
   const telefoneTag = text('fone') || transporta?.getElementsByTagName('fone')[0]?.textContent?.trim() || '';
   const telefoneText = String(infCpl || '').match(/(\+?\d{10,14})/)?.[1] || '';
   const placaTag = text('placa') || text('xPlaca') || '';
   const placaText = String(infCpl || '').match(/\b[A-Z]{3}[0-9][A-Z0-9][0-9]{2}\b/i)?.[0] || '';
-  return { motorista, telefone: telefoneTag || telefoneText || '-', placa: placaTag || placaText || '-' };
+  return { transportadora, motorista, telefone: telefoneTag || telefoneText || '-', placa: placaTag || placaText || '-' };
 }
 
 function parseXmlText(xmlText) {
@@ -295,7 +304,7 @@ function renderPdfPages(nota) {
 
   p1.innerHTML = `<div class="pdf-mini"><b>PÁGINA 1/2 - DADOS DA NF-E</b></div>
     <div class="nf-box pdf-mini">EMISSÃO: <b>${nota.emissao || '-'}</b> | VALOR TOTAL: <b>${(nota.valorTotal || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</b><br/>NATUREZA: <b>${nota.natureza || '-'}</b> | PROTOCOLO: <b>${nota.protocolo || '-'}</b></div>
-    <div class="nf-grid pdf-mini"><div class="nf-box"><b>NF-e:</b> ${nfeFmt}<br/><b>Chave:</b> ${nota.chave || '-'}</div><div class="nf-box"><b>Motorista:</b> ${nota.transporte.motorista}<br/><b>Telefone:</b> ${nota.transporte.telefone}<br/><b>Placa:</b> ${nota.transporte.placa}<br/><b>DT:</b> ${nota.dtRemessa || '-'}</div></div>
+    <div class="nf-grid pdf-mini"><div class="nf-box"><b>NF-e:</b> ${nfeFmt}<br/><b>Chave:</b> ${nota.chave || '-'}</div><div class="nf-box"><b>Transportadora:</b> ${nota.transporte.transportadora}<br/><b>Motorista:</b> ${nota.transporte.motorista}<br/><b>Telefone:</b> ${nota.transporte.telefone}<br/><b>Placa:</b> ${nota.transporte.placa}<br/><b>DT:</b> ${nota.dtRemessa || '-'}</div></div>
     <div class="nf-box pdf-mini"><b>Emitente:</b> ${nota.emitente} (${nota.emitenteCnpj})<br/><b>Destinatário:</b> ${nota.destinatario} (${nota.destinatarioCnpj})<br/><b>Volume:</b> ${nota.volume} | <b>Peso:</b> ${nota.pesoBruto}</div>
     <div class="barcode-wrap"><svg id="barcodeChave"></svg></div>`;
 
@@ -305,6 +314,7 @@ function renderPdfPages(nota) {
   if (window.JsBarcode && chave.length === 44) window.JsBarcode('#barcodeChave', chave, { format: 'CODE128', width: 1.2, height: 44, displayValue: true, margin: 0 });
 
   uploadXmlForm.elements.motorista.value = nota.transporte.motorista;
+  uploadXmlForm.elements.transportadora.value = nota.transporte.transportadora;
   uploadXmlForm.elements.telefoneMotorista.value = nota.transporte.telefone;
   uploadXmlForm.elements.placa.value = nota.transporte.placa;
 }
@@ -324,6 +334,7 @@ async function publishInvoice(evt) {
     numero_nota: nota.numeroNota,
     chave_nfe: nota.chave,
     motorista: nota.transporte.motorista,
+    transportadora: nota.transporte.transportadora,
     telefone_motorista: nota.transporte.telefone,
     placa: nota.transporte.placa,
     emitente: nota.emitente,
@@ -419,7 +430,8 @@ async function loadInvoices() {
   visibleInvoices.forEach((n) => {
     const opt = document.createElement('option');
     opt.value = n.id;
-    opt.textContent = `${n.numero_nota}/${n.placa} - ${n.motorista}`;
+    const placaTag = `${n.placa || 'SEM-PLACA'}${n.reaberta ? '-reaberta' : ''}`;
+    opt.textContent = `${n.numero_nota}/${placaTag}/${n.dt_remessa || '-'}`;
     notaSelect.appendChild(opt);
   });
   if (state.user?.role === 'operacao' && !visibleInvoices.length) {
@@ -437,7 +449,7 @@ function renderOperacaoInvoice(notaId) {
     conferenciaForm.innerHTML = '';
     return;
   }
-  notaInfo.innerHTML = `<p><strong>Motorista:</strong> ${nota.motorista}</p><p><strong>Telefone:</strong> ${nota.telefone_motorista}</p><p><strong>Placa:</strong> ${nota.placa}</p><p><strong>DT/Remessa:</strong> ${nota.dt_remessa || '-'}</p>${nota.reaberta ? '<p class="warning"><strong>Carga reaberta pelo ADM</strong> - refaça a conferência.</p>' : ''}`;
+  notaInfo.innerHTML = `<p><strong>Transportadora:</strong> ${nota.transportadora || '-'}</p><p><strong>Motorista:</strong> ${nota.motorista}</p><p><strong>Telefone:</strong> ${nota.telefone_motorista}</p><p><strong>Placa:</strong> ${nota.placa}</p><p><strong>DT/Remessa:</strong> ${nota.dt_remessa || '-'}</p>${nota.reaberta ? '<p class="warning"><strong>Carga reaberta pelo ADM</strong> - refaça a conferência.</p>' : ''}`;
   conferenciaForm.innerHTML = `
     <div class="unit-choice">
       <strong>Unidade da conferência (bem visível)</strong>
@@ -446,6 +458,8 @@ function renderOperacaoInvoice(notaId) {
     </div>
     <label><input type="checkbox" name="pl2" /> Carreta carregada com PL2</label>
     <label>Quantidade de paletes (ex: 144)<input type="number" name="paletes_total" min="0" step="1" /></label>
+    <label>Hora início descarga (editável)<input type="time" name="hora_inicio" value="${new Date().toTimeString().slice(0, 5)}" /></label>
+    <label>Hora fim descarga (editável)<input type="time" name="hora_fim" value="${new Date().toTimeString().slice(0, 5)}" /></label>
     <label><input type="checkbox" name="avaria" /> Veio avariado</label>
     <label><input type="checkbox" name="faltando" /> Veio faltando</label>
     <label>Descrição da avaria (opcional)<textarea name="avaria_obs"></textarea></label>`;
@@ -483,8 +497,8 @@ async function submitConferencia(evt) {
   const pl2 = form.get('pl2') === 'on';
   const paletesTotal = Number(form.get('paletes_total') || 0);
   const unidade = form.get('unidade_conferencia') || 'fardo';
-  const inicioCarga = nota.inicio_descarga || new Date().toISOString();
-  const fimCarga = new Date().toISOString();
+  const inicioCarga = composeDateTimeFromHour(form.get('hora_inicio')) || nota.inicio_descarga || new Date().toISOString();
+  const fimCarga = composeDateTimeFromHour(form.get('hora_fim'));
   const conferidos = (nota.itens_json || []).map((item) => {
     const code = normalizeProductCode(item.codigo);
     const informadoRaw = Number(form.get(code) || 0);
@@ -661,52 +675,78 @@ function loadDescargaPlanilha() {
   `;
 }
 
-function persistPortariaMap() {
-  localStorage.setItem('rcv-portaria-map', JSON.stringify(state.portariaMap));
+function persistRecebimentoMap() {
+  localStorage.setItem('rcv-recebimento-map', JSON.stringify(state.recebimentoMap));
 }
 
-function buildPortariaLine(nota, portaria) {
+function buildRecebimentoLine(nota, extra = {}) {
   const referencia = nota?.xml_raw ? parseXmlText(nota.xml_raw) : null;
   const chegada = new Date(nota?.created_at || Date.now());
   const data = chegada.toLocaleDateString('pt-BR');
-  const hora = chegada.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const hora = extra.hora_chegada || chegada.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   const peso = referencia?.pesoBruto || '-';
   const remessa = nota?.dt_remessa || referencia?.dtRemessa || '-';
   const documentoSap = referencia?.documentoSap || '-';
-  return [data, hora, nota?.numero_nota || '-', peso, remessa, documentoSap, portaria || '-'].join('\t');
+  const status = extra.status || (nota?.descarga_fechada ? 'FECHADA' : (nota?.reaberta ? 'REABERTA' : 'ABERTA'));
+  const horaEncerrada = extra.hora_encerrada || (nota?.fim_descarga ? new Date(nota.fim_descarga).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-');
+  return [
+    data,
+    hora,
+    nota?.numero_nota || '-',
+    peso,
+    remessa,
+    documentoSap,
+    extra.portaria_sap || '-',
+    status,
+    extra.origem || '-',
+    extra.setor || '-',
+    extra.turno || '-',
+    horaEncerrada,
+    extra.pendencias || '-',
+  ].join('\t');
 }
 
-function loadPortariaTab() {
-  if (!adminPortariaContainer) return;
+function loadRecebimentoTab() {
+  if (!adminRecebimentoContainer) return;
   const rows = [...state.invoices]
     .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
     .map((nota) => {
-      const savedPortaria = state.portariaMap[String(nota.id)] || '';
-      const line = buildPortariaLine(nota, savedPortaria);
+      const saved = state.recebimentoMap[String(nota.id)] || {};
+      const line = buildRecebimentoLine(nota, saved);
       return `<div class="log">
-        <label>Portaria
-          <input data-portaria-input="${nota.id}" value="${savedPortaria}" placeholder="Informe a portaria" />
-        </label>
+        <div class="grid two">
+          <label>PORTARIA SAP<input data-rec-field="portaria_sap" data-note-id="${nota.id}" value="${saved.portaria_sap || ''}" /></label>
+          <label>STATUS<input data-rec-field="status" data-note-id="${nota.id}" value="${saved.status || ''}" /></label>
+          <label>Origem<input data-rec-field="origem" data-note-id="${nota.id}" value="${saved.origem || ''}" /></label>
+          <label>Setor<input data-rec-field="setor" data-note-id="${nota.id}" value="${saved.setor || ''}" /></label>
+          <label>Turno<input data-rec-field="turno" data-note-id="${nota.id}" value="${saved.turno || ''}" /></label>
+          <label>Hora chegada<input data-rec-field="hora_chegada" data-note-id="${nota.id}" value="${saved.hora_chegada || ''}" placeholder="HH:MM" /></label>
+          <label>Hora encerrada<input data-rec-field="hora_encerrada" data-note-id="${nota.id}" value="${saved.hora_encerrada || ''}" placeholder="HH:MM" /></label>
+          <label>Pendências<input data-rec-field="pendencias" data-note-id="${nota.id}" value="${saved.pendencias || ''}" /></label>
+        </div>
         <code>${line}</code>
-        <button class="copy-portaria-line" data-note-id="${nota.id}">Copiar linha</button>
+        <button class="copy-recebimento-line" data-note-id="${nota.id}">Copiar linha</button>
       </div>`;
     }).join('');
 
-  adminPortariaContainer.innerHTML = rows || '<p class="hint">Sem notas publicadas.</p>';
+  adminRecebimentoContainer.innerHTML = rows || '<p class="hint">Sem notas publicadas.</p>';
 
-  document.querySelectorAll('[data-portaria-input]').forEach((el) => {
+  document.querySelectorAll('[data-rec-field]').forEach((el) => {
     el.addEventListener('input', (evt) => {
-      state.portariaMap[String(evt.target.dataset.portariaInput)] = evt.target.value.trim();
-      persistPortariaMap();
-      loadPortariaTab();
+      const noteId = String(evt.target.dataset.noteId);
+      const field = evt.target.dataset.recField;
+      const current = state.recebimentoMap[noteId] || {};
+      state.recebimentoMap[noteId] = { ...current, [field]: evt.target.value.trim() };
+      persistRecebimentoMap();
+      loadRecebimentoTab();
     });
   });
 
-  document.querySelectorAll('.copy-portaria-line').forEach((btn) => {
+  document.querySelectorAll('.copy-recebimento-line').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const noteId = String(btn.dataset.noteId);
       const nota = state.invoices.find((x) => String(x.id) === noteId);
-      const line = buildPortariaLine(nota, state.portariaMap[noteId] || '-');
+      const line = buildRecebimentoLine(nota, state.recebimentoMap[noteId] || {});
       await navigator.clipboard.writeText(line);
       btn.textContent = 'Copiado!';
       setTimeout(() => { btn.textContent = 'Copiar linha'; }, 1200);
@@ -860,7 +900,7 @@ async function refreshAll() {
     await loadConferencias();
     await loadNqReports();
     loadDescargaPlanilha();
-    loadPortariaTab();
+    loadRecebimentoTab();
   }
   await loadChats();
 }
@@ -921,7 +961,7 @@ setInterval(() => {
     loadLogs();
     loadNqReports();
     loadDescargaPlanilha();
-    loadPortariaTab();
+    loadRecebimentoTab();
   }
 }, 6000);
 

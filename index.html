@@ -69,7 +69,7 @@
           <button class="tab-btn" data-admin-tab="conferidas">Cargas conferidas</button>
           <button class="tab-btn" data-admin-tab="nq">NQ Excel</button>
           <button class="tab-btn" data-admin-tab="planilha">Planilha descarga</button>
-          <button class="tab-btn" data-admin-tab="portaria">Portaria</button>
+          <button class="tab-btn" data-admin-tab="recebimento">Recebimento Excel</button>
         </div>
 
         <div id="tabAbertas" class="tab-content">
@@ -79,6 +79,7 @@
               <p id="duplicateWarning" class="warning hidden">⚠️ Esta NF já foi publicada anteriormente. Não publique novamente.</p>
               <label>Arquivo XML<input type="file" id="xmlFile" accept=".xml,text/xml" required /></label>
               <label>Motorista (extraído do XML)<input name="motorista" readonly /></label>
+              <label>Transportadora (extraída do XML)<input name="transportadora" readonly /></label>
               <label>Telefone motorista (extraído do XML)<input name="telefoneMotorista" readonly /></label>
               <label>Placa (extraída do XML)<input name="placa" readonly /></label>
               <button type="submit">Publicar nota para conferência</button>
@@ -116,10 +117,10 @@
           <div id="adminDescargasContainer"></div>
         </div>
 
-        <div id="tabPortaria" class="tab-content hidden">
-          <h3>Portaria (linha para Excel)</h3>
-          <p class="hint">Formato: DATA | Hora Chegada | NF | PESO | REMESSA | Documento SAP | PORTARIA.</p>
-          <div id="adminPortariaContainer"></div>
+        <div id="tabRecebimento" class="tab-content hidden">
+          <h3>Recebimento Excel (linha)</h3>
+          <p class="hint">Formato: DATA | Hora Chegada | NF | PESO | REMESSA | Documento SAP | PORTARIA SAP | STATUS | Origem | Setor | Turno | Hora encerrada | Pendências.</p>
+          <div id="adminRecebimentoContainer"></div>
         </div>
       </section>
 

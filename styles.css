@@ -26,7 +26,7 @@ button.danger { background: #ca2e2e; }
 .btn-close { background: #2e7d32; }
 .btn-reopen { background: #c07a00; margin-left: 8px; }
 .logs-toolbar input { min-width: 280px; flex: 1; }
-.reaberta { border-color: #e0b84d !important; background: #fff7d1 !important; }
+.reaberta { border-color: #7e57c2 !important; background: #f1e9ff !important; }
 
 .auth-choice { display:flex; gap:8px; margin-bottom:12px; }
 .auth-form { max-width: 460px; }
