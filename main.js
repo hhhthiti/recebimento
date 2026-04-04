@@ -18,6 +18,7 @@ const state = {
   authView: 'login',
   adminTab: 'abertas',
   logFilter: 'all',
+  portariaMap: JSON.parse(localStorage.getItem('rcv-portaria-map') || '{}'),
 };
 
 const localDb = {
@@ -41,6 +42,7 @@ const logsContainer = qs('logsContainer');
 const adminConferencias = qs('adminConferencias');
 const adminNqContainer = qs('adminNqContainer');
 const adminDescargasContainer = qs('adminDescargasContainer');
+const adminPortariaContainer = qs('adminPortariaContainer');
 const notaInfo = qs('notaInfo');
 const duplicateWarning = qs('duplicateWarning');
 const operacaoStats = qs('operacaoStats');
@@ -190,6 +192,7 @@ function setAdminTab(tab) {
   qs('tabConferidas').classList.toggle('hidden', tab !== 'conferidas');
   qs('tabNq').classList.toggle('hidden', tab !== 'nq');
   qs('tabPlanilha').classList.toggle('hidden', tab !== 'planilha');
+  qs('tabPortaria').classList.toggle('hidden', tab !== 'portaria');
 }
 
 function setLogsPage(active) {
@@ -199,6 +202,10 @@ function setLogsPage(active) {
 
 function extractDtRemessa(infCpl) {
   return String(infCpl || '').match(/Numero\s*DT\s*:?\s*(\d+)/i)?.[1] || '';
+}
+
+function extractDocumentoSap(infCpl) {
+  return String(infCpl || '').match(/(?:Doc\.?\s*Referencia|Documento\s*SAP)\s*:?\s*([0-9A-Z]+)/i)?.[1] || '-';
 }
 
 function extractTransportInfo(xml, infCpl) {
@@ -246,6 +253,7 @@ function parseXmlText(xmlText) {
     pesoBruto: text('pesoB') || '-',
     volume: text('qVol') || '-',
     dtRemessa: extractDtRemessa(infCpl),
+    documentoSap: extractDocumentoSap(infCpl),
     items,
     transporte: extractTransportInfo(xml, infCpl),
     rawXml: xmlText,
@@ -641,6 +649,59 @@ function loadDescargaPlanilha() {
   `;
 }
 
+function persistPortariaMap() {
+  localStorage.setItem('rcv-portaria-map', JSON.stringify(state.portariaMap));
+}
+
+function buildPortariaLine(nota, portaria) {
+  const referencia = nota?.xml_raw ? parseXmlText(nota.xml_raw) : null;
+  const chegada = new Date(nota?.created_at || Date.now());
+  const data = chegada.toLocaleDateString('pt-BR');
+  const hora = chegada.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const peso = referencia?.pesoBruto || '-';
+  const remessa = nota?.dt_remessa || referencia?.dtRemessa || '-';
+  const documentoSap = referencia?.documentoSap || '-';
+  return [data, hora, nota?.numero_nota || '-', peso, remessa, documentoSap, portaria || '-'].join('\t');
+}
+
+function loadPortariaTab() {
+  if (!adminPortariaContainer) return;
+  const rows = [...state.invoices]
+    .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
+    .map((nota) => {
+      const savedPortaria = state.portariaMap[String(nota.id)] || '';
+      const line = buildPortariaLine(nota, savedPortaria);
+      return `<div class="log">
+        <label>Portaria
+          <input data-portaria-input="${nota.id}" value="${savedPortaria}" placeholder="Informe a portaria" />
+        </label>
+        <code>${line}</code>
+        <button class="copy-portaria-line" data-note-id="${nota.id}">Copiar linha</button>
+      </div>`;
+    }).join('');
+
+  adminPortariaContainer.innerHTML = rows || '<p class="hint">Sem notas publicadas.</p>';
+
+  document.querySelectorAll('[data-portaria-input]').forEach((el) => {
+    el.addEventListener('input', (evt) => {
+      state.portariaMap[String(evt.target.dataset.portariaInput)] = evt.target.value.trim();
+      persistPortariaMap();
+      loadPortariaTab();
+    });
+  });
+
+  document.querySelectorAll('.copy-portaria-line').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const noteId = String(btn.dataset.noteId);
+      const nota = state.invoices.find((x) => String(x.id) === noteId);
+      const line = buildPortariaLine(nota, state.portariaMap[noteId] || '-');
+      await navigator.clipboard.writeText(line);
+      btn.textContent = 'Copiado!';
+      setTimeout(() => { btn.textContent = 'Copiar linha'; }, 1200);
+    });
+  });
+}
+
 function formatFileTimestamp(date = new Date()) {
   const pad = (n) => String(n).padStart(2, '0');
   return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
@@ -787,6 +848,7 @@ async function refreshAll() {
     await loadConferencias();
     await loadNqReports();
     loadDescargaPlanilha();
+    loadPortariaTab();
   }
   await loadChats();
 }
@@ -847,6 +909,7 @@ setInterval(() => {
     loadLogs();
     loadNqReports();
     loadDescargaPlanilha();
+    loadPortariaTab();
   }
 }, 6000);
 

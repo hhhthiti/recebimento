@@ -69,6 +69,7 @@
           <button class="tab-btn" data-admin-tab="conferidas">Cargas conferidas</button>
           <button class="tab-btn" data-admin-tab="nq">NQ Excel</button>
           <button class="tab-btn" data-admin-tab="planilha">Planilha descarga</button>
+          <button class="tab-btn" data-admin-tab="portaria">Portaria</button>
         </div>
 
         <div id="tabAbertas" class="tab-content">
@@ -113,6 +114,12 @@
         <div id="tabPlanilha" class="tab-content hidden">
           <h3>Planilha de descarga</h3>
           <div id="adminDescargasContainer"></div>
+        </div>
+
+        <div id="tabPortaria" class="tab-content hidden">
+          <h3>Portaria (linha para Excel)</h3>
+          <p class="hint">Formato: DATA | Hora Chegada | NF | PESO | REMESSA | Documento SAP | PORTARIA.</p>
+          <div id="adminPortariaContainer"></div>
         </div>
       </section>
 
