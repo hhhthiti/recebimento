@@ -52,7 +52,7 @@
           <label>Perfil
             <select name="role" required>
               <option value="operacao">Operação</option>
-              <option value="adm">ADM</option>
+              <option value="adm">CCO</option>
             </select>
           </label>
           <label>Email<input name="email" type="email" /></label>
@@ -62,13 +62,13 @@
       </section>
 
       <section id="adminSection" class="card hidden">
-        <h2>Painel ADM</h2>
+        <h2>Painel CCO</h2>
 
         <div class="tabs">
           <button class="tab-btn active" data-admin-tab="abertas">Cargas abertas</button>
           <button class="tab-btn" data-admin-tab="conferidas">Cargas conferidas</button>
           <button class="tab-btn" data-admin-tab="nq">NQ Excel</button>
-          <button class="tab-btn" data-admin-tab="planilha">Planilha descarga</button>
+          <button class="tab-btn" data-admin-tab="planilha">Dashboard descarga</button>
         </div>
 
         <div id="tabAbertas" class="tab-content">
@@ -81,13 +81,16 @@
               <label>Transportadora (extraída do XML)<input name="transportadora" readonly /></label>
               <label>Telefone motorista (extraído do XML)<input name="telefoneMotorista" readonly /></label>
               <label>Placa (extraída do XML)<input name="placa" readonly /></label>
-              <button type="submit">Publicar nota para conferência</button>
+              <div class="toolbar">
+                <button type="submit">Publicar nota para conferência</button>
+                <button id="btnClearXml" type="button" class="secondary">Limpar dados XML</button>
+              </div>
             </form>
 
             <div class="stack">
               <h3>Visualização da nota</h3>
               <pre id="invoicePreview" class="preview">Nenhum XML carregado.</pre>
-              <button id="btnPrintInvoice" type="button">Gerar PDF (NF + Conferência + Etiquetas)</button>
+              <button id="btnPrintInvoice" type="button">Gerar PDF (NF + Conferência + Etiqueta)</button>
             </div>
 
             <div class="stack">
@@ -112,7 +115,10 @@
         </div>
 
         <div id="tabPlanilha" class="tab-content hidden">
-          <h3>Planilha de descarga</h3>
+          <div class="toolbar">
+          <h3>Dashboard de descarga</h3>
+          <button id="btnClearHistory" type="button" class="danger">Limpar histórico de cargas</button>
+        </div>
           <div id="adminDescargasContainer"></div>
         </div>
 
