@@ -11,6 +11,7 @@ label { font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
 input, select, textarea, button { padding: 8px; border-radius: 8px; border: 1px solid #c4c9d4; }
 button { cursor: pointer; border: none; background: #2766cf; color: white; }
 button.danger { background: #ca2e2e; }
+button.ghost { background: #eef2fa; color: #1d3155; border: 1px solid #b9c6df; }
 .toolbar { display: flex; gap: 8px; align-items: center; }
 .hidden { display: none !important; }
 .preview { max-height: 320px; overflow: auto; padding: 10px; background: #eff3fb; border-radius: 8px; }
@@ -18,6 +19,10 @@ button.danger { background: #ca2e2e; }
 .divergente { border-color: #e54343; background: #fff0f0; }
 .faltando { border-color: #d7a700; background: #fff8d9; }
 .item { border: 1px solid #e2e6ef; border-radius: 8px; padding: 10px; }
+.signature-box { border: 1px dashed #9fb2d8; border-radius: 8px; padding: 8px; background: #f8fbff; }
+#signatureCanvas { width: 100%; max-width: 520px; border: 1px solid #d5dff0; border-radius: 6px; background: #fff; touch-action: none; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border: 1px solid #dde3ee; padding: 6px; text-align: left; font-size: 13px; }
 
 .tabs { display: flex; gap: 8px; margin: 8px 0 14px; flex-wrap: wrap; }
 .tab-btn { background: #e9eef8; color: #203254; border: 1px solid #b8c8e8; }
