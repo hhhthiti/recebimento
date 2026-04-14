@@ -77,27 +77,21 @@
               <h3>Subir XML de NF-e</h3>
               <p id="duplicateWarning" class="warning hidden">⚠️ Esta NF já foi publicada anteriormente. Não publique novamente.</p>
               <label>Arquivo XML<input type="file" id="xmlFile" accept=".xml,text/xml" required /></label>
-              <label>Motorista (extraído do XML)<input name="motorista" readonly /></label>
-              <label>Transportadora (extraída do XML)<input name="transportadora" readonly /></label>
-              <label>Telefone motorista (extraído do XML)<input name="telefoneMotorista" readonly /></label>
-              <label>Placa (extraída do XML)<input name="placa" readonly /></label>
+              <label>Motorista (preencher manualmente)<input name="motorista" placeholder="Nome do motorista" /></label>
+              <label>Transportadora (auto preenchido, pode editar)<input name="transportadora" /></label>
+              <label>Telefone motorista (auto preenchido, pode editar)<input name="telefoneMotorista" placeholder="5511999999999" /></label>
+              <label>Placa (auto preenchido, pode editar)<input name="placa" placeholder="ABC1D23" /></label>
               <div class="toolbar">
                 <button type="submit">Publicar nota para conferência</button>
                 <button id="btnClearXml" type="button" class="secondary">Limpar dados XML</button>
               </div>
-            </form>
-
-            <div class="stack">
-              <h3>Visualização da nota</h3>
-              <pre id="invoicePreview" class="preview">Nenhum XML carregado.</pre>
               <button id="btnPrintInvoice" type="button">Gerar PDF (NF + Conferência + Etiqueta)</button>
-            </div>
+            </form>
 
             <div class="stack">
               <h3>Pré-visualização PDF</h3>
               <div class="pdf-pages">
                 <div id="pdfPage1" class="pdf-page"></div>
-                <div id="pdfPage2" class="pdf-page"></div>
               </div>
             </div>
           </div>

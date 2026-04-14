@@ -38,7 +38,6 @@ const loginForm = qs('loginForm');
 const uploadXmlForm = qs('uploadXmlForm');
 const conferenciaForm = qs('conferenciaForm');
 const notaSelect = qs('notaSelect');
-const invoicePreview = qs('invoicePreview');
 const logsContainer = qs('logsContainer');
 const adminConferencias = qs('adminConferencias');
 const adminNqContainer = qs('adminNqContainer');
@@ -224,14 +223,12 @@ function composeDateTimeFromHour(hourText) {
 function extractTransportInfo(xml, infCpl) {
   const text = (tag) => xml.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
   const transporta = xml.getElementsByTagName('transporta')[0];
-  const motoristaInfCpl = String(infCpl || '').match(/(?:Motorista|Condutor)\s*:?\s*([A-ZÀ-Ú0-9 .'-]{3,60})/i)?.[1]?.trim();
-  const motorista = motoristaInfCpl || text('xContato') || '-';
   const transportadora = transporta?.getElementsByTagName('xNome')[0]?.textContent?.trim() || '-';
   const telefoneTag = text('fone') || transporta?.getElementsByTagName('fone')[0]?.textContent?.trim() || '';
   const telefoneText = String(infCpl || '').match(/(\+?\d{10,14})/)?.[1] || '';
   const placaTag = text('placa') || text('xPlaca') || '';
   const placaText = String(infCpl || '').match(/\b[A-Z]{3}[0-9][A-Z0-9][0-9]{2}\b/i)?.[0] || '';
-  return { transportadora, motorista, telefone: telefoneTag || telefoneText || '-', placa: placaTag || placaText || '-' };
+  return { transportadora, motorista: '', telefone: telefoneTag || telefoneText || '', placa: placaTag || placaText || '' };
 }
 
 function parseXmlText(xmlText) {
@@ -300,21 +297,27 @@ async function login(evt) {
   setUser(data);
 }
 
-function renderPdfPages(nota) {
+function renderPdfPages(nota, assinaturaDataUrl = '', assinaturaEm = '') {
   const p1 = qs('pdfPage1');
-  const p2 = qs('pdfPage2');
-  if (!p1 || !p2 || !nota) return;
+  if (!p1 || !nota) return;
   const nfeFmt = String(nota.numeroNota || '').padStart(9, '0').replace(/(\d{3})(\d{3})(\d{3})/, '$1.$2.$3');
   const chave = String(nota.chave || '').replace(/\D/g, '');
+  const impressaoEm = new Date().toLocaleString('pt-BR');
+  const statusAssinatura = assinaturaEm ? `Assinada em ${new Date(assinaturaEm).toLocaleString('pt-BR')}` : 'Aguardando assinatura';
+  const assinaturaHtml = assinaturaDataUrl
+    ? `<img src="${assinaturaDataUrl}" alt="Assinatura do conferente" style="max-width:80mm; max-height:26mm;" />`
+    : '<div style="height:26mm;border-bottom:1px solid #111;"></div>';
 
-  p1.innerHTML = `<div class="pdf-mini"><b>PÁGINA 1/2 - DADOS DA NF-E</b></div>
+  p1.innerHTML = `<div class="pdf-mini"><b>NF + CONFERÊNCIA + ETIQUETA</b></div>
     <div class="nf-box pdf-mini">EMISSÃO: <b>${nota.emissao || '-'}</b> | VALOR TOTAL: <b>${(nota.valorTotal || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</b><br/>NATUREZA: <b>${nota.natureza || '-'}</b> | PROTOCOLO: <b>${nota.protocolo || '-'}</b></div>
     <div class="nf-grid pdf-mini"><div class="nf-box"><b>NF-e:</b> ${nfeFmt}<br/><b>Chave:</b> ${nota.chave || '-'}</div><div class="nf-box"><b>Transportadora:</b> ${nota.transporte.transportadora}<br/><b>Motorista:</b> ${nota.transporte.motorista}<br/><b>Telefone:</b> ${nota.transporte.telefone}<br/><b>Placa:</b> ${nota.transporte.placa}<br/><b>DT:</b> ${nota.dtRemessa || '-'}</div></div>
     <div class="nf-box pdf-mini"><b>Emitente:</b> ${nota.emitente} (${nota.emitenteCnpj})<br/><b>Destinatário:</b> ${nota.destinatario} (${nota.destinatarioCnpj})<br/><b>Volume:</b> ${nota.volume} | <b>Peso:</b> ${nota.pesoBruto}</div>
-    <div class="barcode-wrap"><svg id="barcodeChave"></svg></div>`;
-
-  p2.innerHTML = `<div class="pdf-mini"><b>PÁGINA 2/2 - CONFERÊNCIA / PALETES</b></div>
-  <table><thead><tr><th>Código</th><th>Descrição</th><th>NCM/CFOP</th><th>Paletes</th></tr></thead><tbody>${nota.items.map((i) => `<tr><td>${i.codigo}</td><td>${i.descricao}</td><td>${i.ncm || '-'} / ${i.cfop || '-'}</td><td></td></tr>`).join('')}</tbody></table>`;
+    <div class="barcode-wrap"><svg id="barcodeChave"></svg></div>
+    <table><thead><tr><th>SKU</th><th>Descrição</th><th>Qtd. NF</th><th>NCM/CFOP</th></tr></thead><tbody>${nota.items.map((i) => `<tr><td>${i.codigo}</td><td>${i.descricao}</td><td>${Number(i.quantidadeFardo || 0)}</td><td>${i.ncm || '-'} / ${i.cfop || '-'}</td></tr>`).join('')}</tbody></table>
+    <div class="nf-grid pdf-mini" style="margin-top:8px">
+      <div class="nf-box"><b>Impresso em:</b> ${impressaoEm}<br/><b>Status assinatura:</b> ${statusAssinatura}</div>
+      <div class="nf-box"><b>Assinatura do conferente:</b><br/>${assinaturaHtml}</div>
+    </div>`;
 
   if (window.JsBarcode && chave.length === 44) window.JsBarcode('#barcodeChave', chave, { format: 'CODE128', width: 1.2, height: 44, displayValue: true, margin: 0 });
 
@@ -329,9 +332,7 @@ function clearXmlData() {
   state.currentInvoice = null;
   uploadXmlForm.reset();
   duplicateWarning?.classList.add('hidden');
-  invoicePreview.textContent = 'Nenhum XML carregado.';
   if (qs('pdfPage1')) qs('pdfPage1').innerHTML = '';
-  if (qs('pdfPage2')) qs('pdfPage2').innerHTML = '';
 }
 
 async function publishInvoice(evt) {
@@ -345,13 +346,22 @@ async function publishInvoice(evt) {
     await logAction('NOTA_DUPLICADA_BLOQUEADA', null, 0, `Tentativa de publicar NF ${nota.numeroNota} já existente`, false);
     return alert(`A NF ${nota.numeroNota} já foi publicada. Operação bloqueada para evitar duplicidade.`);
   }
+  const motorista = String(uploadXmlForm.elements.motorista.value || '').trim();
+  const transportadora = String(uploadXmlForm.elements.transportadora.value || nota.transporte.transportadora || '').trim();
+  const telefone = String(uploadXmlForm.elements.telefoneMotorista.value || nota.transporte.telefone || '').trim();
+  const placa = String(uploadXmlForm.elements.placa.value || nota.transporte.placa || '').trim();
+  nota.transporte.motorista = motorista;
+  nota.transporte.transportadora = transportadora;
+  nota.transporte.telefone = telefone;
+  nota.transporte.placa = placa;
+
   await dbInsert('notas', {
     numero_nota: nota.numeroNota,
     chave_nfe: nota.chave,
-    motorista: nota.transporte.motorista,
-    transportadora: nota.transporte.transportadora,
-    telefone_motorista: nota.transporte.telefone,
-    placa: nota.transporte.placa,
+    motorista: motorista || '-',
+    transportadora: transportadora || '-',
+    telefone_motorista: telefone || '-',
+    placa: placa || '-',
     emitente: nota.emitente,
     emissao: nota.emissao,
     valor_total: nota.valorTotal,
@@ -363,7 +373,6 @@ async function publishInvoice(evt) {
   });
   state.currentInvoice = nota;
   duplicateWarning?.classList.add('hidden');
-  invoicePreview.textContent = JSON.stringify(nota, null, 2);
   renderPdfPages(nota);
   uploadXmlForm.reset();
   await logAction('PUBLICACAO_NOTA', null, 0, `Nota ${nota.numeroNota} publicada pelo CCO`, false);
@@ -374,7 +383,18 @@ async function publishInvoice(evt) {
 async function generatePdfFromPages() {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF || !window.html2canvas) return alert('Bibliotecas PDF não carregadas.');
-  const pages = [qs('pdfPage1'), qs('pdfPage2')];
+  if (!state.currentInvoice) return alert('Carregue um XML antes de gerar PDF.');
+  const notaPublicada = await dbSelect('notas', { eq: { numero_nota: state.currentInvoice.numeroNota }, single: true });
+  let assinaturaDataUrl = '';
+  let assinaturaEm = '';
+  if (notaPublicada?.id) {
+    const conferencias = await dbSelect('conferencias', { eq: { nota_id: notaPublicada.id }, orderBy: 'created_at' }) || [];
+    const confComAssinatura = conferencias.find((c) => c.assinatura_data_url) || null;
+    assinaturaDataUrl = confComAssinatura?.assinatura_data_url || '';
+    assinaturaEm = confComAssinatura?.assinatura_em || '';
+  }
+  renderPdfPages(state.currentInvoice, assinaturaDataUrl, assinaturaEm);
+  const pages = [qs('pdfPage1')];
   if (!pages[0].innerHTML.trim()) return alert('Carregue um XML antes de gerar PDF.');
   const pdf = new jsPDF('p', 'mm', 'a4');
   for (let i = 0; i < pages.length; i += 1) {
@@ -713,7 +733,13 @@ async function loadNqReports() {
 function loadDescargaPlanilha() {
   if (!adminDescargasContainer) return;
   const conferenciasByNota = new Map();
-  (state.conferencias || []).forEach((c) => conferenciasByNota.set(String(c.nota_id), c));
+  (state.conferencias || []).forEach((c) => {
+    const key = String(c.nota_id);
+    const current = conferenciasByNota.get(key);
+    if (!current || (!current.assinatura_data_url && c.assinatura_data_url)) {
+      conferenciasByNota.set(key, c);
+    }
+  });
   const pendentes = state.invoices.filter((n) => !conferenciasByNota.has(String(n.id)));
   const assinadas = state.invoices.filter((n) => conferenciasByNota.has(String(n.id)));
 
@@ -820,7 +846,9 @@ function loadRecebimentoTab() {
 
 
 async function baixarNotaAssinada(conferenciaId) {
-  const conf = (state.conferencias || []).find((c) => Number(c.id) === Number(conferenciaId));
+  const confLocal = (state.conferencias || []).find((c) => Number(c.id) === Number(conferenciaId));
+  const confDb = await dbSelect('conferencias', { eq: { id: Number(conferenciaId) }, single: true });
+  const conf = confDb || confLocal;
   if (!conf) return;
   const nota = state.invoices.find((n) => Number(n.id) === Number(conf.nota_id));
   const { jsPDF } = window.jspdf || {};
@@ -1039,7 +1067,6 @@ qs('xmlFile')?.addEventListener('change', async (evt) => {
   const alreadyExists = await dbSelect('notas', { eq: { numero_nota: nota.numeroNota } });
   duplicateWarning?.classList.toggle('hidden', !(alreadyExists || []).length);
   state.currentInvoice = nota;
-  invoicePreview.textContent = JSON.stringify(nota, null, 2);
   renderPdfPages(nota);
 });
 
