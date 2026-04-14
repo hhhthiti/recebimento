@@ -19,7 +19,7 @@
       <div class="toolbar" id="globalToolbar">
         <button id="btnDensity">Modo tablet</button>
         <button id="btnLogs" class="hidden">Página de logs</button>
-        <button id="btnBackAdmin" class="hidden">Voltar ao ADM</button>
+        <button id="btnBackAdmin" class="hidden">Voltar ao CCO</button>
         <button id="btnLogout">Sair</button>
       </div>
     </header>
@@ -52,7 +52,7 @@
           <label>Perfil
             <select name="role" required>
               <option value="operacao">Operação</option>
-              <option value="adm">ADM</option>
+              <option value="adm">CCO</option>
             </select>
           </label>
           <label>Email<input name="email" type="email" /></label>
@@ -62,13 +62,13 @@
       </section>
 
       <section id="adminSection" class="card hidden">
-        <h2>Painel ADM</h2>
+        <h2>Painel CCO</h2>
 
         <div class="tabs">
           <button class="tab-btn active" data-admin-tab="abertas">Cargas abertas</button>
           <button class="tab-btn" data-admin-tab="conferidas">Cargas conferidas</button>
           <button class="tab-btn" data-admin-tab="nq">NQ Excel</button>
-          <button class="tab-btn" data-admin-tab="planilha">Planilha descarga</button>
+          <button class="tab-btn" data-admin-tab="planilha">Dashboard de descarga</button>
         </div>
 
         <div id="tabAbertas" class="tab-content">
@@ -81,13 +81,16 @@
               <label>Transportadora (extraída do XML)<input name="transportadora" readonly /></label>
               <label>Telefone motorista (extraído do XML)<input name="telefoneMotorista" readonly /></label>
               <label>Placa (extraída do XML)<input name="placa" readonly /></label>
-              <button type="submit">Publicar nota para conferência</button>
+              <div class="toolbar">
+                <button type="submit">Publicar nota para conferência</button>
+                <button id="btnClearXml" type="button" class="ghost">Limpar dados do XML</button>
+              </div>
             </form>
 
             <div class="stack">
               <h3>Visualização da nota</h3>
               <pre id="invoicePreview" class="preview">Nenhum XML carregado.</pre>
-              <button id="btnPrintInvoice" type="button">Gerar PDF (NF + Conferência + Etiquetas)</button>
+              <button id="btnPrintInvoice" type="button">Gerar PDF (NF + Conferência + Etiqueta)</button>
             </div>
 
             <div class="stack">
@@ -96,6 +99,11 @@
                 <div id="pdfPage1" class="pdf-page"></div>
                 <div id="pdfPage2" class="pdf-page"></div>
               </div>
+            </div>
+
+            <div class="stack">
+              <h3>Notas publicadas (com quantidades)</h3>
+              <div id="adminNotasResumo"></div>
             </div>
           </div>
         </div>
@@ -107,12 +115,16 @@
 
         <div id="tabNq" class="tab-content hidden">
           <h3>NQ para Excel (linha)</h3>
-          <p class="hint">A operação só marca <strong>avaria</strong> e <strong>falta</strong>. Aqui no ADM você copia as linhas prontas para Excel.</p>
+          <p class="hint">A operação só marca <strong>avaria</strong> e <strong>falta</strong>. Aqui no CCO você copia as linhas prontas para Excel.</p>
           <div id="adminNqContainer"></div>
         </div>
 
         <div id="tabPlanilha" class="tab-content hidden">
-          <h3>Planilha de descarga</h3>
+          <h3>Dashboard de descarga</h3>
+          <div class="toolbar">
+            <button id="btnRefreshDashboard" type="button">Atualizar dashboard</button>
+            <button id="btnClearHistorico" type="button" class="danger">Limpar histórico de cargas</button>
+          </div>
           <div id="adminDescargasContainer"></div>
         </div>
 

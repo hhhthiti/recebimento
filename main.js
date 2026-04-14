@@ -19,6 +19,7 @@ const state = {
   adminTab: 'abertas',
   logFilter: 'all',
   recebimentoMap: JSON.parse(localStorage.getItem('rcv-recebimento-map') || '{}'),
+  dashboardSignatures: {},
 };
 
 const localDb = {
@@ -43,6 +44,7 @@ const adminConferencias = qs('adminConferencias');
 const adminNqContainer = qs('adminNqContainer');
 const adminDescargasContainer = qs('adminDescargasContainer');
 const adminRecebimentoContainer = qs('adminRecebimentoContainer');
+const adminNotasResumo = qs('adminNotasResumo');
 const notaInfo = qs('notaInfo');
 const duplicateWarning = qs('duplicateWarning');
 const operacaoStats = qs('operacaoStats');
@@ -188,11 +190,11 @@ function renderAuthState() {
 function setAdminTab(tab) {
   state.adminTab = tab;
   document.querySelectorAll('[data-admin-tab]').forEach((btn) => btn.classList.toggle('active', btn.dataset.adminTab === tab));
-  qs('tabAbertas').classList.toggle('hidden', tab !== 'abertas');
-  qs('tabConferidas').classList.toggle('hidden', tab !== 'conferidas');
-  qs('tabNq').classList.toggle('hidden', tab !== 'nq');
-  qs('tabPlanilha').classList.toggle('hidden', tab !== 'planilha');
-  qs('tabRecebimento').classList.toggle('hidden', tab !== 'recebimento');
+  qs('tabAbertas')?.classList.toggle('hidden', tab !== 'abertas');
+  qs('tabConferidas')?.classList.toggle('hidden', tab !== 'conferidas');
+  qs('tabNq')?.classList.toggle('hidden', tab !== 'nq');
+  qs('tabPlanilha')?.classList.toggle('hidden', tab !== 'planilha');
+  qs('tabRecebimento')?.classList.toggle('hidden', tab !== 'recebimento');
 }
 
 function setLogsPage(active) {
@@ -351,9 +353,20 @@ async function publishInvoice(evt) {
   invoicePreview.textContent = JSON.stringify(nota, null, 2);
   renderPdfPages(nota);
   uploadXmlForm.reset();
-  await logAction('PUBLICACAO_NOTA', null, 0, `Nota ${nota.numeroNota} publicada pelo ADM`, false);
+  await logAction('PUBLICACAO_NOTA', null, 0, `Nota ${nota.numeroNota} publicada pelo CCO`, false);
   await loadInvoices();
   alert('Nota publicada com sucesso.');
+}
+
+function clearXmlPreview() {
+  if (uploadXmlForm) uploadXmlForm.reset();
+  state.currentInvoice = null;
+  invoicePreview.textContent = 'Nenhum XML carregado.';
+  const p1 = qs('pdfPage1');
+  const p2 = qs('pdfPage2');
+  if (p1) p1.innerHTML = '';
+  if (p2) p2.innerHTML = '';
+  duplicateWarning?.classList.add('hidden');
 }
 
 async function generatePdfFromPages() {
@@ -387,7 +400,7 @@ async function generatePdfFromPages() {
     pdf.setFontSize(34);
     pdf.text(`${label.fardosPorPalete} FARDOS POR PALETE`, width / 2, 105, { align: 'center' });
     pdf.setFontSize(18);
-    pdf.text(`Palete ${label.paleteIndex}/${label.totalPaletes} - Etiqueta ${label.copyIndex}/2`, width / 2, 125, { align: 'center' });
+    pdf.text(`Paletes na NF: ${label.totalPaletes} - Etiqueta única por SKU`, width / 2, 125, { align: 'center' });
     pdf.setDrawColor(20, 20, 20);
     pdf.rect(15, 140, width - 30, 48);
     pdf.setFontSize(14);
@@ -395,23 +408,28 @@ async function generatePdfFromPages() {
     pdf.text('Turno: ______________________', width - 110, 160);
     pdf.text(`NF: ${state.currentInvoice?.numeroNota || '-'}   SKU: ${label.codigo}`, 25, 178);
   });
+  if (state.currentInvoice?.numeroNota) {
+    const notaAtual = state.invoices.find((n) => String(n.numero_nota) === String(state.currentInvoice.numeroNota));
+    if (notaAtual?.id) {
+      await dbUpdate('notas', { id: notaAtual.id }, { ultima_impressao_em: new Date().toISOString() });
+      await loadInvoices();
+    }
+  }
   pdf.save(`recebimento-nfe-${String(state.currentInvoice?.numeroNota || 'sem-nfe').padStart(9, '0').slice(-9)}.pdf`);
 }
 
 function buildEtiquetaPages(nota) {
   if (!nota?.items?.length) return [];
-  const pages = [];
-  nota.items.forEach((item) => {
+  return nota.items.map((item) => {
     const codigo = normalizeProductCode(item.codigo);
-    const fardosPorPalete = getFardosPorPalete(codigo);
-    const totalPaletes = Math.max(1, Math.ceil(Number(item.quantidadeFardo || 0) / fardosPorPalete));
-    for (let palete = 1; palete <= totalPaletes; palete += 1) {
-      for (let copyIndex = 1; copyIndex <= 2; copyIndex += 1) {
-        pages.push({ codigo, fardosPorPalete, paleteIndex: palete, totalPaletes, copyIndex });
-      }
-    }
+    return {
+      codigo,
+      fardosPorPalete: getFardosPorPalete(codigo),
+      totalPaletes: Math.max(1, Math.ceil(Number(item.quantidadeFardo || 0) / getFardosPorPalete(codigo))),
+      paleteIndex: 1,
+      copyIndex: 1,
+    };
   });
-  return pages;
 }
 
 async function loadInvoices() {
@@ -449,7 +467,7 @@ function renderOperacaoInvoice(notaId) {
     conferenciaForm.innerHTML = '';
     return;
   }
-  notaInfo.innerHTML = `<p><strong>Transportadora:</strong> ${nota.transportadora || '-'}</p><p><strong>Motorista:</strong> ${nota.motorista}</p><p><strong>Telefone:</strong> ${nota.telefone_motorista}</p><p><strong>Placa:</strong> ${nota.placa}</p><p><strong>DT/Remessa:</strong> ${nota.dt_remessa || '-'}</p>${nota.reaberta ? '<p class="warning"><strong>Carga reaberta pelo ADM</strong> - refaça a conferência.</p>' : ''}`;
+  notaInfo.innerHTML = `<p><strong>Transportadora:</strong> ${nota.transportadora || '-'}</p><p><strong>Motorista:</strong> ${nota.motorista}</p><p><strong>Telefone:</strong> ${nota.telefone_motorista}</p><p><strong>Placa:</strong> ${nota.placa}</p><p><strong>DT/Remessa:</strong> ${nota.dt_remessa || '-'}</p>${nota.reaberta ? '<p class="warning"><strong>Carga reaberta pelo CCO</strong> - refaça a conferência.</p>' : ''}`;
   conferenciaForm.innerHTML = `
     <div class="unit-choice">
       <strong>Unidade da conferência (bem visível)</strong>
@@ -470,7 +488,16 @@ function renderOperacaoInvoice(notaId) {
     conferenciaForm.insertAdjacentHTML('beforeend', `<div class="item"><p><strong>${code}</strong> - ${item.descricao}</p><p class="hint">${fardosPorPalete} fardos por palete</p><label>Quantidade conferida<input type="number" step="0.01" min="0" required name="${code}" /></label><label class="fracao-fardo hidden" data-fracao="${code}">Fardos fracionados (quando conferir em paletes)<input type="number" step="0.01" min="0" name="${code}__fracao" value="0" /></label></div>`);
   });
 
-  conferenciaForm.insertAdjacentHTML('beforeend', '<label>Observação<textarea name="observacao" placeholder="Opcional"></textarea></label><button type="submit">Enviar conferência</button>');
+  conferenciaForm.insertAdjacentHTML('beforeend', `
+    <label>Observação<textarea name="observacao" placeholder="Opcional"></textarea></label>
+    <div class="signature-box">
+      <strong>Assinatura digital do conferente</strong>
+      <canvas id="signatureCanvas" width="520" height="170"></canvas>
+      <div class="toolbar">
+        <button type="button" id="btnClearSignature" class="ghost">Limpar assinatura</button>
+      </div>
+    </div>
+    <button type="submit">Enviar conferência</button>`);
   conferenciaForm.dataset.notaId = nota.id;
 
   conferenciaForm.querySelectorAll('input[name="unidade_conferencia"]').forEach((radio) => {
@@ -479,6 +506,54 @@ function renderOperacaoInvoice(notaId) {
       conferenciaForm.querySelectorAll('[data-fracao]').forEach((el) => el.classList.toggle('hidden', !paleteMode));
     });
   });
+  initSignaturePad();
+}
+
+function initSignaturePad() {
+  const canvas = qs('signatureCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  let drawing = false;
+  let hasDrawn = false;
+  const point = (evt) => {
+    const rect = canvas.getBoundingClientRect();
+    const touch = evt.touches?.[0];
+    const x = (touch?.clientX ?? evt.clientX) - rect.left;
+    const y = (touch?.clientY ?? evt.clientY) - rect.top;
+    return { x, y };
+  };
+  const start = (evt) => {
+    drawing = true;
+    const p = point(evt);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    evt.preventDefault();
+  };
+  const move = (evt) => {
+    if (!drawing) return;
+    const p = point(evt);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    hasDrawn = true;
+    evt.preventDefault();
+  };
+  const end = () => { drawing = false; };
+  canvas.onmousedown = start;
+  canvas.onmousemove = move;
+  canvas.onmouseup = end;
+  canvas.onmouseleave = end;
+  canvas.ontouchstart = start;
+  canvas.ontouchmove = move;
+  canvas.ontouchend = end;
+  qs('btnClearSignature')?.addEventListener('click', () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.dataset.signed = '0';
+  });
+  const marker = () => { if (hasDrawn) canvas.dataset.signed = '1'; };
+  canvas.addEventListener('mouseup', marker);
+  canvas.addEventListener('touchend', marker);
 }
 
 async function submitConferencia(evt) {
@@ -487,11 +562,17 @@ async function submitConferencia(evt) {
   if (!nota) return;
   const existingForNote = await dbSelect('conferencias', { eq: { nota_id: nota.id } }) || [];
   if (existingForNote.length && !nota.reaberta) {
-    return alert('Esta nota já foi conferida por outro usuário. Apenas notas reabertas pelo ADM podem ser conferidas novamente.');
+    return alert('Esta nota já foi conferida por outro usuário. Apenas notas reabertas pelo CCO podem ser conferidas novamente.');
   }
   if (!confirm('Tem certeza que deseja terminar a conferência?')) return;
 
   const form = new FormData(conferenciaForm);
+  const signatureCanvas = qs('signatureCanvas');
+  if (!signatureCanvas?.dataset?.signed) {
+    return alert('A assinatura digital do conferente é obrigatória.');
+  }
+  const assinaturaDataUrl = signatureCanvas.toDataURL('image/png');
+  const assinaturaEm = new Date().toISOString();
   const houveAvaria = form.get('avaria') === 'on';
   const houveFaltaMarcada = form.get('faltando') === 'on';
   const pl2 = form.get('pl2') === 'on';
@@ -532,6 +613,8 @@ async function submitConferencia(evt) {
     fim_carga: fimCarga,
     reabertura_finalizada: !!nota.reaberta,
     avaria_obs: `${form.get('avaria_obs') || ''}`.trim(),
+    assinatura_data_url: assinaturaDataUrl,
+    assinatura_em: assinaturaEm,
     status: divergentes.length ? 'com_divergencia' : 'ok',
     itens_conferidos: conferidos,
   });
@@ -542,7 +625,7 @@ async function submitConferencia(evt) {
     pl2,
     paletes_total: paletesTotal,
     reaberta: false,
-    anotacao_reabertura: nota.reaberta ? `Reaberta pelo ADM e finalizada pela operação em ${new Date(fimCarga).toLocaleString('pt-BR')}` : (nota.anotacao_reabertura || ''),
+    anotacao_reabertura: nota.reaberta ? `Reaberta pelo CCO e finalizada pela operação em ${new Date(fimCarga).toLocaleString('pt-BR')}` : (nota.anotacao_reabertura || ''),
   });
 
   for (const item of conferidos) {
@@ -574,13 +657,13 @@ async function submitConferencia(evt) {
 async function fecharDescarga(idNota) {
   const nota = state.invoices.find((n) => n.id === idNota);
   await dbUpdate('notas', { id: idNota }, { descarga_fechada: true, fim_descarga: nota?.fim_descarga || new Date().toISOString() });
-  await logAction('DESCARGA_FECHADA', null, 0, `Descarga NF ${state.invoices.find((n) => n.id === idNota)?.numero_nota || '-' } fechada pelo ADM`, false);
+  await logAction('DESCARGA_FECHADA', null, 0, `Descarga NF ${state.invoices.find((n) => n.id === idNota)?.numero_nota || '-' } fechada pelo CCO`, false);
   await refreshAll();
 }
 
 async function reabrirConferencia(idNota) {
   await dbUpdate('notas', { id: idNota }, { reaberta: true, descarga_fechada: false, reaberta_em: new Date().toISOString() });
-  await logAction('CONFERENCIA_REABERTA', null, 0, `NF ${state.invoices.find((n) => n.id === idNota)?.numero_nota || '-'} reaberta pelo ADM`, false);
+  await logAction('CONFERENCIA_REABERTA', null, 0, `NF ${state.invoices.find((n) => n.id === idNota)?.numero_nota || '-'} reaberta pelo CCO`, false);
   await refreshAll();
 }
 
@@ -600,6 +683,7 @@ async function loadConferencias() {
       <p><strong>Avaria:</strong> ${conf.avaria ? 'Sim' : 'Não'} | <strong>Falta:</strong> ${conf.faltando ? 'Sim' : 'Não'}</p>
       <p><strong>PL2:</strong> ${conf.pl2 ? 'Sim' : 'Não'} | <strong>Paletes:</strong> ${conf.paletes_total || '-'}</p>
       <p><strong>Início carga:</strong> ${conf.inicio_carga ? new Date(conf.inicio_carga).toLocaleString('pt-BR') : '-'} | <strong>Fim:</strong> ${conf.fim_carga ? new Date(conf.fim_carga).toLocaleString('pt-BR') : '-'}</p>
+      <p><strong>Assinatura:</strong> ${conf.assinatura_em ? `Sim (${new Date(conf.assinatura_em).toLocaleString('pt-BR')})` : 'Não'}</p>
       <p><strong>Observação:</strong> ${conf.observacao || '-'}</p>
       <p><strong>Divergências:</strong> ${divergencias.map((d) => `${d.codigo} (${d.divergencia})`).join(', ') || 'Nenhuma'}</p>
       ${nota?.anotacao_reabertura ? `<p><strong>Reabertura:</strong> ${nota.anotacao_reabertura}</p>` : ''}
@@ -614,6 +698,7 @@ async function loadConferencias() {
   document.querySelectorAll('[data-nota-reopen]').forEach((btn) => {
     btn.addEventListener('click', () => reabrirConferencia(Number(btn.dataset.notaReopen)));
   });
+  return data || [];
 }
 
 async function loadNqReports() {
@@ -639,44 +724,97 @@ async function loadNqReports() {
   });
 }
 
-function loadDescargaPlanilha() {
+async function generateSignedReceipt(notaId) {
+  const { jsPDF } = window.jspdf || {};
+  if (!jsPDF) return alert('Biblioteca de PDF não carregada.');
+  const nota = state.invoices.find((n) => String(n.id) === String(notaId));
+  const conferencias = await dbSelect('conferencias', { eq: { nota_id: notaId } }) || [];
+  const conf = conferencias.at(-1);
+  if (!nota || !conf?.assinatura_data_url) return alert('Assinatura não encontrada para esta nota.');
+
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(15);
+  pdf.text(`Nota assinada - NF ${nota.numero_nota}`, 14, 18);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(11);
+  pdf.text(`Motorista: ${nota.motorista || '-'}`, 14, 28);
+  pdf.text(`Placa: ${nota.placa || '-'}   Remessa: ${nota.dt_remessa || '-'}`, 14, 35);
+  pdf.text(`Data impressão: ${new Date().toLocaleString('pt-BR')}`, 14, 42);
+  pdf.text(`Assinatura conferente: ${new Date(conf.assinatura_em).toLocaleString('pt-BR')}`, 14, 49);
+  let y = 60;
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('SKU', 14, y);
+  pdf.text('Qtd NF', 70, y);
+  pdf.text('Qtd Conferida', 100, y);
+  pdf.text('Dif.', 145, y);
+  y += 6;
+  pdf.setFont('helvetica', 'normal');
+  (conf.itens_conferidos || []).forEach((item) => {
+    pdf.text(String(item.codigo || '-'), 14, y);
+    pdf.text(String(item.quantidadeFardo ?? 0), 70, y);
+    pdf.text(String(item.conferido ?? 0), 100, y);
+    pdf.text(String(item.divergencia ?? 0), 145, y);
+    y += 6;
+    if (y > 240) {
+      pdf.addPage();
+      y = 20;
+    }
+  });
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('Assinatura digital', 14, y + 8);
+  pdf.addImage(conf.assinatura_data_url, 'PNG', 14, y + 12, 90, 35);
+  pdf.save(`nota-assinada-${nota.numero_nota}.pdf`);
+}
+
+function loadDescargaPlanilha(conferencias = []) {
   if (!adminDescargasContainer) return;
-  const rows = [...state.invoices]
-    .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
-    .map((nota) => `
-      <tr class="${nota.reaberta ? 'reaberta' : ''}">
-        <td>${nota.dt_remessa || '-'}</td>
-        <td>${nota.placa || '-'}</td>
-        <td>${nota.motorista || '-'}</td>
-        <td>${nota.numero_nota || '-'}</td>
-        <td>${nota.inicio_descarga ? new Date(nota.inicio_descarga).toLocaleString('pt-BR') : '-'}</td>
-        <td>${nota.fim_descarga ? new Date(nota.fim_descarga).toLocaleString('pt-BR') : '-'}</td>
-        <td>${nota.pl2 ? 'Sim' : 'Não'}</td>
-        <td>${nota.paletes_total || '-'}</td>
-      </tr>
-    `).join('');
+  const confByNota = new Map(conferencias.map((c) => [String(c.nota_id), c]));
+  const publicadas = state.invoices.filter((n) => !confByNota.has(String(n.id)));
+  const assinadas = state.invoices.filter((n) => !!confByNota.get(String(n.id))?.assinatura_data_url);
 
   adminDescargasContainer.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>DT</th>
-          <th>Placa</th>
-          <th>Motorista</th>
-          <th>NF</th>
-          <th>Início carga</th>
-          <th>Término</th>
-          <th>PL2</th>
-          <th>Paletes</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
+    <div class="grid two">
+      <div>
+        <h4>Notas publicadas para descarregar</h4>
+        ${publicadas.map((n) => `<div class="log"><strong>NF ${n.numero_nota}</strong> - ${n.placa || '-'} - ${n.dt_remessa || '-'}<br/>Motorista: ${n.motorista || '-'}</div>`).join('') || '<p class="hint">Nenhuma nota pendente.</p>'}
+      </div>
+      <div>
+        <h4>Notas conferidas e assinadas</h4>
+        ${assinadas.map((n) => {
+          const conf = confByNota.get(String(n.id));
+          return `<div class="log">
+            <strong>NF ${n.numero_nota}</strong> - ${n.placa || '-'}<br/>
+            Assinada em: ${conf?.assinatura_em ? new Date(conf.assinatura_em).toLocaleString('pt-BR') : '-'}<br/>
+            Data impressão: ${new Date().toLocaleString('pt-BR')}
+            <div><button data-download-assinado="${n.id}">Baixar nota assinada</button></div>
+          </div>`;
+        }).join('') || '<p class="hint">Nenhuma nota assinada.</p>'}
+      </div>
+    </div>
   `;
+  document.querySelectorAll('[data-download-assinado]').forEach((btn) => {
+    btn.addEventListener('click', () => generateSignedReceipt(Number(btn.dataset.downloadAssinado)));
+  });
 }
 
 function persistRecebimentoMap() {
   localStorage.setItem('rcv-recebimento-map', JSON.stringify(state.recebimentoMap));
+}
+
+function loadAdminNotasResumo() {
+  if (!adminNotasResumo) return;
+  adminNotasResumo.innerHTML = [...state.invoices]
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .map((nota) => {
+      const itens = (nota.itens_json || []).map((item) => `${normalizeProductCode(item.codigo)}: ${item.quantidadeFardo}`).join(' | ');
+      const impressoEm = nota.ultima_impressao_em ? new Date(nota.ultima_impressao_em).toLocaleString('pt-BR') : '-';
+      return `<div class="log">
+        <strong>NF ${nota.numero_nota}</strong><br/>
+        Quantidades: ${itens || '-'}<br/>
+        Última impressão: ${impressoEm}
+      </div>`;
+    }).join('') || '<p class="hint">Sem notas publicadas.</p>';
 }
 
 function buildRecebimentoLine(nota, extra = {}) {
@@ -760,7 +898,7 @@ function formatFileTimestamp(date = new Date()) {
 }
 
 async function guardarLogsNoTerabox() {
-  if (!state.user || state.user.role !== 'adm') return alert('Apenas ADM pode guardar logs no TeraBox.');
+  if (!state.user || state.user.role !== 'adm') return alert('Apenas CCO pode guardar logs no TeraBox.');
   if (!state.logs.length) return alert('Sem logs para guardar.');
   const header = 'DataHora\tUsuario\tTipo\tCodigo\tQtdDivergencia\tMensagem';
   const lines = state.logs.map((log) => [
@@ -868,6 +1006,15 @@ async function clearLogs() {
   }
 }
 
+async function clearHistoricoCargas() {
+  if (!confirm('Deseja apagar do Supabase/local todo o histórico de cargas (notas, conferências e NQ)?')) return;
+  await dbDeleteAll('conferencias');
+  await dbDeleteAll('nq_reports');
+  await dbDeleteAll('notas');
+  await logAction('HISTORICO_CARGAS_LIMPO', null, 0, 'Histórico de cargas apagado pelo CCO', false);
+  await refreshAll();
+}
+
 function toggleChat() { qs('chatPanel').classList.toggle('hidden'); }
 
 async function sendChat(evt) {
@@ -897,10 +1044,11 @@ async function refreshAll() {
   await loadInvoices();
   if (state.user?.role === 'adm') {
     await loadLogs();
-    await loadConferencias();
+    const conferencias = await loadConferencias();
     await loadNqReports();
-    loadDescargaPlanilha();
+    loadDescargaPlanilha(conferencias || []);
     loadRecebimentoTab();
+    loadAdminNotasResumo();
   }
   await loadChats();
 }
@@ -918,6 +1066,9 @@ qs('btnExportLogs').addEventListener('click', exportLogs);
 qs('btnClearLogs').addEventListener('click', clearLogs);
 qs('btnLogout').addEventListener('click', () => setUser(null));
 qs('btnPrintInvoice')?.addEventListener('click', generatePdfFromPages);
+qs('btnClearXml')?.addEventListener('click', clearXmlPreview);
+qs('btnClearHistorico')?.addEventListener('click', clearHistoricoCargas);
+qs('btnRefreshDashboard')?.addEventListener('click', refreshAll);
 qs('chatBubble').addEventListener('click', toggleChat);
 qs('chatForm').addEventListener('submit', sendChat);
 qs('btnLogs').addEventListener('click', () => setLogsPage(true));
@@ -957,11 +1108,11 @@ setInterval(() => {
   if (!state.user) return;
   loadChats();
   if (state.user.role === 'adm') {
-    loadConferencias();
+    loadConferencias().then((conferencias) => loadDescargaPlanilha(conferencias || []));
     loadLogs();
     loadNqReports();
-    loadDescargaPlanilha();
     loadRecebimentoTab();
+    loadAdminNotasResumo();
   }
 }, 6000);
 

@@ -31,6 +31,7 @@ create table if not exists public.notas (
   reaberta_em timestamptz,
   anotacao_reabertura text,
   descarga_fechada boolean default false,
+  ultima_impressao_em timestamptz,
   publicado_por text not null,
   created_at timestamptz default now()
 );
@@ -49,6 +50,8 @@ create table if not exists public.conferencias (
   fim_carga timestamptz,
   reabertura_finalizada boolean default false,
   avaria_obs text,
+  assinatura_data_url text,
+  assinatura_em timestamptz,
   itens_conferidos jsonb not null,
   created_at timestamptz default now()
 );
@@ -99,6 +102,7 @@ alter table public.notas add column if not exists paletes_total numeric;
 alter table public.notas add column if not exists reaberta boolean default false;
 alter table public.notas add column if not exists reaberta_em timestamptz;
 alter table public.notas add column if not exists anotacao_reabertura text;
+alter table public.notas add column if not exists ultima_impressao_em timestamptz;
 alter table public.conferencias add column if not exists avaria boolean default false;
 alter table public.conferencias add column if not exists faltando boolean default false;
 alter table public.conferencias add column if not exists avaria_obs text;
@@ -107,3 +111,5 @@ alter table public.conferencias add column if not exists paletes_total numeric;
 alter table public.conferencias add column if not exists inicio_carga timestamptz;
 alter table public.conferencias add column if not exists fim_carga timestamptz;
 alter table public.conferencias add column if not exists reabertura_finalizada boolean default false;
+alter table public.conferencias add column if not exists assinatura_data_url text;
+alter table public.conferencias add column if not exists assinatura_em timestamptz;
