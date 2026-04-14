@@ -384,7 +384,8 @@ async function generatePdfFromPages() {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF || !window.html2canvas) return alert('Bibliotecas PDF não carregadas.');
   if (!state.currentInvoice) return alert('Carregue um XML antes de gerar PDF.');
-  const notaPublicada = await dbSelect('notas', { eq: { numero_nota: state.currentInvoice.numeroNota }, single: true });
+  const notasPublicadas = await dbSelect('notas', { eq: { numero_nota: state.currentInvoice.numeroNota } }) || [];
+  const notaPublicada = notasPublicadas[0] || null;
   let assinaturaDataUrl = '';
   let assinaturaEm = '';
   if (notaPublicada?.id) {
