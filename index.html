@@ -67,6 +67,7 @@
         <div class="tabs">
           <button class="tab-btn active" data-admin-tab="abertas">Cargas abertas</button>
           <button class="tab-btn" data-admin-tab="conferidas">Cargas conferidas</button>
+          <button class="tab-btn" data-admin-tab="descricoes">Descrições</button>
           <button class="tab-btn" data-admin-tab="nq">NQ Excel</button>
           <button class="tab-btn" data-admin-tab="planilha">Dashboard descarga</button>
         </div>
@@ -102,9 +103,14 @@
           <div id="adminConferencias"></div>
         </div>
 
+        <div id="tabDescricoes" class="tab-content hidden">
+          <h3>Descrições de ocorrências</h3>
+          <div id="adminDescricoesContainer"></div>
+        </div>
+
         <div id="tabNq" class="tab-content hidden">
           <h3>NQ para Excel (linha)</h3>
-          <p class="hint">A operação só marca <strong>avaria</strong> e <strong>falta</strong>. Aqui no ADM você copia as linhas prontas para Excel.</p>
+          <p class="hint">A operação pode marcar <strong>avaria</strong>, <strong>falta</strong> e <strong>sobra</strong>. Aqui no ADM você copia as linhas prontas para Excel.</p>
           <div id="adminNqContainer"></div>
         </div>
 

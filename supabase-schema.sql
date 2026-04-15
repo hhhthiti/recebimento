@@ -43,12 +43,14 @@ create table if not exists public.conferencias (
   status text not null,
   avaria boolean default false,
   faltando boolean default false,
+  sobra boolean default false,
   pl2 boolean default false,
   paletes_total numeric,
   inicio_carga timestamptz,
   fim_carga timestamptz,
   reabertura_finalizada boolean default false,
   avaria_obs text,
+  descricao_ocorrencia text,
   itens_conferidos jsonb not null,
   assinatura_data_url text,
   assinatura_em timestamptz,
@@ -87,6 +89,7 @@ create table if not exists public.nq_reports (
   qtd_rec_fisico numeric not null,
   avaria boolean default false,
   faltando boolean default false,
+  sobra boolean default false,
   criado_por text not null,
   created_at timestamptz default now()
 );
@@ -103,7 +106,9 @@ alter table public.notas add column if not exists reaberta_em timestamptz;
 alter table public.notas add column if not exists anotacao_reabertura text;
 alter table public.conferencias add column if not exists avaria boolean default false;
 alter table public.conferencias add column if not exists faltando boolean default false;
+alter table public.conferencias add column if not exists sobra boolean default false;
 alter table public.conferencias add column if not exists avaria_obs text;
+alter table public.conferencias add column if not exists descricao_ocorrencia text;
 alter table public.conferencias add column if not exists pl2 boolean default false;
 alter table public.conferencias add column if not exists paletes_total numeric;
 alter table public.conferencias add column if not exists inicio_carga timestamptz;
@@ -112,3 +117,4 @@ alter table public.conferencias add column if not exists reabertura_finalizada b
 
 alter table public.conferencias add column if not exists assinatura_data_url text;
 alter table public.conferencias add column if not exists assinatura_em timestamptz;
+alter table public.nq_reports add column if not exists sobra boolean default false;

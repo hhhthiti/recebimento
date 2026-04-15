@@ -42,6 +42,7 @@ const logsContainer = qs('logsContainer');
 const adminConferencias = qs('adminConferencias');
 const adminNqContainer = qs('adminNqContainer');
 const adminDescargasContainer = qs('adminDescargasContainer');
+const adminDescricoesContainer = qs('adminDescricoesContainer');
 const adminRecebimentoContainer = qs('adminRecebimentoContainer');
 const notaInfo = qs('notaInfo');
 const duplicateWarning = qs('duplicateWarning');
@@ -192,11 +193,12 @@ function renderAuthState() {
 function setAdminTab(tab) {
   state.adminTab = tab;
   document.querySelectorAll('[data-admin-tab]').forEach((btn) => btn.classList.toggle('active', btn.dataset.adminTab === tab));
-  qs('tabAbertas').classList.toggle('hidden', tab !== 'abertas');
-  qs('tabConferidas').classList.toggle('hidden', tab !== 'conferidas');
-  qs('tabNq').classList.toggle('hidden', tab !== 'nq');
-  qs('tabPlanilha').classList.toggle('hidden', tab !== 'planilha');
-  qs('tabRecebimento').classList.toggle('hidden', tab !== 'recebimento');
+  qs('tabAbertas')?.classList.toggle('hidden', tab !== 'abertas');
+  qs('tabConferidas')?.classList.toggle('hidden', tab !== 'conferidas');
+  qs('tabDescricoes')?.classList.toggle('hidden', tab !== 'descricoes');
+  qs('tabNq')?.classList.toggle('hidden', tab !== 'nq');
+  qs('tabPlanilha')?.classList.toggle('hidden', tab !== 'planilha');
+  qs('tabRecebimento')?.classList.toggle('hidden', tab !== 'recebimento');
 }
 
 function setLogsPage(active) {
@@ -463,7 +465,10 @@ async function loadInvoices() {
     const opt = document.createElement('option');
     opt.value = n.id;
     const placaTag = `${n.placa || 'SEM-PLACA'}${n.reaberta ? '-reaberta' : ''}`;
-    opt.textContent = `${n.numero_nota}/${placaTag}/${n.dt_remessa || '-'}`;
+    const horaSubida = n.created_at
+      ? new Date(n.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      : '--:--';
+    opt.textContent = `${n.numero_nota} (${horaSubida})/${placaTag}/${n.dt_remessa || '-'}`;
     notaSelect.appendChild(opt);
   });
   if (state.user?.role === 'operacao' && !visibleInvoices.length) {
@@ -494,7 +499,10 @@ function renderOperacaoInvoice(notaId) {
     <label>Hora fim descarga (editável)<input type="time" name="hora_fim" value="${new Date().toTimeString().slice(0, 5)}" /></label>
     <label><input type="checkbox" name="avaria" /> Veio avariado</label>
     <label><input type="checkbox" name="faltando" /> Veio faltando</label>
-    <label>Descrição da avaria (opcional)<textarea name="avaria_obs"></textarea></label>`;
+    <label><input type="checkbox" name="sobra" /> Veio com sobra</label>
+    <label id="ocorrenciaDescricaoBox" class="hidden">Descrição da ocorrência (obrigatória quando marcar avaria/falta/sobra)
+      <textarea name="descricao_ocorrencia" placeholder="Ex: veio faltando 2 volumes, SKU trocado, avaria na embalagem..."></textarea>
+    </label>`;
 
   (nota.itens_json || []).forEach((item) => {
     const code = normalizeProductCode(item.codigo);
@@ -517,6 +525,16 @@ function renderOperacaoInvoice(notaId) {
       conferenciaForm.querySelectorAll('[data-fracao]').forEach((el) => el.classList.toggle('hidden', !paleteMode));
     });
   });
+  const occurrenceChecks = conferenciaForm.querySelectorAll('input[name="avaria"], input[name="faltando"], input[name="sobra"]');
+  const occurrenceDescriptionBox = qs('ocorrenciaDescricaoBox');
+  const occurrenceDescriptionInput = conferenciaForm.querySelector('textarea[name="descricao_ocorrencia"]');
+  const syncOccurrenceDescriptionVisibility = () => {
+    const hasOccurrence = Array.from(occurrenceChecks).some((el) => el.checked);
+    occurrenceDescriptionBox?.classList.toggle('hidden', !hasOccurrence);
+    if (occurrenceDescriptionInput) occurrenceDescriptionInput.required = hasOccurrence;
+  };
+  occurrenceChecks.forEach((input) => input.addEventListener('change', syncOccurrenceDescriptionVisibility));
+  syncOccurrenceDescriptionVisibility();
 
   setupSignatureCanvas(nota.id);
 }
@@ -576,6 +594,11 @@ async function submitConferencia(evt) {
   if (!assinaturaDataUrl) return alert('Assine digitalmente antes de enviar a conferência.');
   const houveAvaria = form.get('avaria') === 'on';
   const houveFaltaMarcada = form.get('faltando') === 'on';
+  const houveSobraMarcada = form.get('sobra') === 'on';
+  const descricaoOcorrencia = `${form.get('descricao_ocorrencia') || ''}`.trim();
+  if ((houveAvaria || houveFaltaMarcada || houveSobraMarcada) && !descricaoOcorrencia) {
+    return alert('Descreva a ocorrência quando marcar avaria, falta ou sobra.');
+  }
   const pl2 = form.get('pl2') === 'on';
   const paletesTotal = Number(form.get('paletes_total') || 0);
   const unidade = form.get('unidade_conferencia') || 'fardo';
@@ -608,12 +631,14 @@ async function submitConferencia(evt) {
     observacao: `${form.get('observacao') || ''}`.trim(),
     avaria: houveAvaria,
     faltando: houveFaltaMarcada,
+    sobra: houveSobraMarcada,
     pl2,
     paletes_total: paletesTotal,
     inicio_carga: inicioCarga,
     fim_carga: fimCarga,
     reabertura_finalizada: !!nota.reaberta,
-    avaria_obs: `${form.get('avaria_obs') || ''}`.trim(),
+    avaria_obs: descricaoOcorrencia,
+    descricao_ocorrencia: descricaoOcorrencia,
     status: divergentes.length ? 'com_divergencia' : 'ok',
     itens_conferidos: conferidos,
     assinatura_data_url: assinaturaDataUrl,
@@ -641,11 +666,13 @@ async function submitConferencia(evt) {
       qtd_rec_fisico: item.conferido ?? 0,
       avaria: houveAvaria,
       faltando: houveFaltaMarcada || Number(item.conferido) < Number(item.quantidadeFardo),
+      sobra: houveSobraMarcada || Number(item.conferido) > Number(item.quantidadeFardo),
       criado_por: state.user.matricula,
     });
   }
 
   if (houveFaltaMarcada) await logAction('FALTA_INFORMADA', null, 0, `Nota ${nota.numero_nota} marcada com falta`, false);
+  if (houveSobraMarcada) await logAction('SOBRA_INFORMADA', null, 0, `Nota ${nota.numero_nota} marcada com sobra`, false);
   for (const item of divergentes) await logAction('DIVERGENCIA', item.codigo, item.divergencia, `Nota ${nota.numero_nota}`, true);
   if (conferidos.some((item) => item.divergencia > 0)) await logAction('QUANTIDADE_A_MAIS', null, 0, `Nota ${nota.numero_nota} com itens a mais`, false);
   if (nota.reaberta) await logAction('REABERTURA_FINALIZADA', null, 0, `Nota ${nota.numero_nota} finalizada após reabertura`, false);
@@ -683,7 +710,8 @@ async function loadConferencias() {
       <p><strong>Conferente:</strong> ${conf.conferente_matricula}</p>
       <p><strong>Status:</strong> ${conf.status}</p>
       <p><strong>DT/NF:</strong> ${nota?.dt_remessa || '-'} / NF ${nota?.numero_nota || '-'}</p>
-      <p><strong>Avaria:</strong> ${conf.avaria ? 'Sim' : 'Não'} | <strong>Falta:</strong> ${conf.faltando ? 'Sim' : 'Não'}</p>
+      <p><strong>Avaria:</strong> ${conf.avaria ? 'Sim' : 'Não'} | <strong>Falta:</strong> ${conf.faltando ? 'Sim' : 'Não'} | <strong>Sobra:</strong> ${conf.sobra ? 'Sim' : 'Não'}</p>
+      <p><strong>Descrição ocorrência:</strong> ${conf.descricao_ocorrencia || conf.avaria_obs || '-'}</p>
       <p><strong>PL2:</strong> ${conf.pl2 ? 'Sim' : 'Não'} | <strong>Paletes:</strong> ${conf.paletes_total || '-'}</p>
       <p><strong>Início carga:</strong> ${conf.inicio_carga ? new Date(conf.inicio_carga).toLocaleString('pt-BR') : '-'} | <strong>Fim:</strong> ${conf.fim_carga ? new Date(conf.fim_carga).toLocaleString('pt-BR') : '-'}</p>
       <p><strong>Observação:</strong> ${conf.observacao || '-'}</p>
@@ -705,6 +733,41 @@ async function loadConferencias() {
   });
   document.querySelectorAll('[data-conf-download]').forEach((btn) => {
     btn.addEventListener('click', () => baixarNotaAssinada(Number(btn.dataset.confDownload)));
+  });
+}
+
+function loadDescricoesTab() {
+  if (!adminDescricoesContainer) return;
+  adminDescricoesContainer.innerHTML = '';
+  const rows = (state.conferencias || [])
+    .map((conf) => {
+      const nota = state.invoices.find((n) => n.id === conf.nota_id);
+      const descricao = conf.descricao_ocorrencia || conf.avaria_obs || '';
+      const hasMarcacao = conf.avaria || conf.faltando || conf.sobra;
+      return {
+        conf,
+        nota,
+        descricao,
+        hasMarcacao,
+      };
+    })
+    .filter((row) => row.hasMarcacao || row.descricao);
+
+  if (!rows.length) {
+    adminDescricoesContainer.innerHTML = '<p class="hint">Nenhuma ocorrência descrita até o momento.</p>';
+    return;
+  }
+
+  rows.forEach(({ conf, nota, descricao }) => {
+    const row = document.createElement('div');
+    row.className = 'log';
+    row.innerHTML = `
+      <p><strong>NF:</strong> ${nota?.numero_nota || '-'} | <strong>Remessa:</strong> ${nota?.dt_remessa || '-'}</p>
+      <p><strong>Conferente:</strong> ${conf.conferente_matricula || '-'} | <strong>Data:</strong> ${conf.created_at ? new Date(conf.created_at).toLocaleString('pt-BR') : '-'}</p>
+      <p><strong>Marcações:</strong> Avaria: ${conf.avaria ? 'Sim' : 'Não'} | Falta: ${conf.faltando ? 'Sim' : 'Não'} | Sobra: ${conf.sobra ? 'Sim' : 'Não'}</p>
+      <p><strong>Descrição:</strong> ${descricao || '-'}</p>
+    `;
+    adminDescricoesContainer.appendChild(row);
   });
 }
 
@@ -1045,6 +1108,7 @@ async function refreshAll() {
     await loadConferencias();
     await loadNqReports();
     loadDescargaPlanilha();
+    loadDescricoesTab();
     loadRecebimentoTab();
   }
   await loadChats();
@@ -1107,6 +1171,7 @@ setInterval(() => {
     loadLogs();
     loadNqReports();
     loadDescargaPlanilha();
+    loadDescricoesTab();
     loadRecebimentoTab();
   }
 }, 6000);
