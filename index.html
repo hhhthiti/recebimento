@@ -52,7 +52,7 @@
           <label>Perfil
             <select name="role" required>
               <option value="operacao">Operação</option>
-              <option value="adm">ADM</option>
+              <option value="adm">CCO</option>
             </select>
           </label>
           <label>Email<input name="email" type="email" /></label>
@@ -62,13 +62,13 @@
       </section>
 
       <section id="adminSection" class="card hidden">
-        <h2>Painel ADM</h2>
+        <h2>Painel CCO</h2>
 
         <div class="tabs">
           <button class="tab-btn active" data-admin-tab="abertas">Cargas abertas</button>
           <button class="tab-btn" data-admin-tab="conferidas">Cargas conferidas</button>
           <button class="tab-btn" data-admin-tab="nq">NQ Excel</button>
-          <button class="tab-btn" data-admin-tab="planilha">Planilha descarga</button>
+          <button class="tab-btn" data-admin-tab="planilha">Dashboard descarga</button>
         </div>
 
         <div id="tabAbertas" class="tab-content">
@@ -77,24 +77,21 @@
               <h3>Subir XML de NF-e</h3>
               <p id="duplicateWarning" class="warning hidden">⚠️ Esta NF já foi publicada anteriormente. Não publique novamente.</p>
               <label>Arquivo XML<input type="file" id="xmlFile" accept=".xml,text/xml" required /></label>
-              <label>Motorista (extraído do XML)<input name="motorista" readonly /></label>
-              <label>Transportadora (extraída do XML)<input name="transportadora" readonly /></label>
-              <label>Telefone motorista (extraído do XML)<input name="telefoneMotorista" readonly /></label>
-              <label>Placa (extraída do XML)<input name="placa" readonly /></label>
-              <button type="submit">Publicar nota para conferência</button>
+              <label>Motorista (preencher manualmente)<input name="motorista" placeholder="Nome do motorista" /></label>
+              <label>Transportadora (auto preenchido, pode editar)<input name="transportadora" /></label>
+              <label>Telefone motorista (auto preenchido, pode editar)<input name="telefoneMotorista" placeholder="5511999999999" /></label>
+              <label>Placa (auto preenchido, pode editar)<input name="placa" placeholder="ABC1D23" /></label>
+              <div class="toolbar">
+                <button type="submit">Publicar nota para conferência</button>
+                <button id="btnClearXml" type="button" class="secondary">Limpar dados XML</button>
+              </div>
+              <button id="btnPrintInvoice" type="button">Gerar PDF (NF + Conferência + Etiqueta)</button>
             </form>
-
-            <div class="stack">
-              <h3>Visualização da nota</h3>
-              <pre id="invoicePreview" class="preview">Nenhum XML carregado.</pre>
-              <button id="btnPrintInvoice" type="button">Gerar PDF (NF + Conferência + Etiquetas)</button>
-            </div>
 
             <div class="stack">
               <h3>Pré-visualização PDF</h3>
               <div class="pdf-pages">
                 <div id="pdfPage1" class="pdf-page"></div>
-                <div id="pdfPage2" class="pdf-page"></div>
               </div>
             </div>
           </div>
@@ -112,7 +109,10 @@
         </div>
 
         <div id="tabPlanilha" class="tab-content hidden">
-          <h3>Planilha de descarga</h3>
+          <div class="toolbar">
+          <h3>Dashboard de descarga</h3>
+          <button id="btnClearHistory" type="button" class="danger">Limpar histórico de cargas</button>
+        </div>
           <div id="adminDescargasContainer"></div>
         </div>
 

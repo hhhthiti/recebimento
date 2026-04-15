@@ -50,6 +50,8 @@ create table if not exists public.conferencias (
   reabertura_finalizada boolean default false,
   avaria_obs text,
   itens_conferidos jsonb not null,
+  assinatura_data_url text,
+  assinatura_em timestamptz,
   created_at timestamptz default now()
 );
 
@@ -107,3 +109,6 @@ alter table public.conferencias add column if not exists paletes_total numeric;
 alter table public.conferencias add column if not exists inicio_carga timestamptz;
 alter table public.conferencias add column if not exists fim_carga timestamptz;
 alter table public.conferencias add column if not exists reabertura_finalizada boolean default false;
+
+alter table public.conferencias add column if not exists assinatura_data_url text;
+alter table public.conferencias add column if not exists assinatura_em timestamptz;
