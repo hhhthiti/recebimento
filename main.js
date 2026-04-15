@@ -852,25 +852,41 @@ async function baixarNotaAssinada(conferenciaId) {
   const conf = confDb || confLocal;
   if (!conf) return;
   const nota = state.invoices.find((n) => Number(n.id) === Number(conf.nota_id));
+  if (!nota?.xml_raw) return alert('XML da nota não encontrado para gerar o layout padrão.');
   const { jsPDF } = window.jspdf || {};
-  if (!jsPDF) return alert('Biblioteca PDF não carregada.');
+  if (!jsPDF || !window.html2canvas) return alert('Bibliotecas PDF não carregadas.');
+
+  const notaPreviewAnterior = state.currentInvoice;
+  const pdfPage = qs('pdfPage1');
+  const htmlAnterior = pdfPage?.innerHTML || '';
+
+  const notaPreview = parseXmlText(nota.xml_raw);
+  notaPreview.transporte = {
+    motorista: nota.motorista || notaPreview.transporte.motorista || '',
+    transportadora: nota.transportadora || notaPreview.transporte.transportadora || '',
+    telefone: nota.telefone_motorista || notaPreview.transporte.telefone || '',
+    placa: nota.placa || notaPreview.transporte.placa || '',
+  };
+  state.currentInvoice = notaPreview;
+  renderPdfPages(notaPreview, conf.assinatura_data_url || '', conf.assinatura_em || '');
+
   const pdf = new jsPDF('p', 'mm', 'a4');
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(14);
-  pdf.text(`Nota ${nota?.numero_nota || '-'} - Conferência assinada`, 10, 14);
-  pdf.setFontSize(10);
-  pdf.text(`Conferente: ${conf.conferente_matricula || '-'} | Assinado em: ${conf.assinatura_em ? new Date(conf.assinatura_em).toLocaleString('pt-BR') : '-'}`, 10, 21);
-  let y = 30;
-  (conf.itens_conferidos || []).forEach((item) => {
-    pdf.text(`${item.codigo} | NF: ${item.quantidadeFardo ?? 0} | Conferido: ${item.conferido ?? 0}`, 10, y);
-    y += 6;
-    if (y > 250) { pdf.addPage(); y = 20; }
-  });
-  if (conf.assinatura_data_url) {
-    pdf.text('Assinatura do conferente:', 10, Math.min(y + 10, 250));
-    pdf.addImage(conf.assinatura_data_url, 'PNG', 10, Math.min(y + 14, 254), 80, 30);
+  const canvas = await window.html2canvas(pdfPage, { scale: 2, useCORS: true, backgroundColor: '#fff' });
+  const img = canvas.toDataURL('image/png');
+  const prop = pdf.getImageProperties(img);
+  const m = 6;
+  let w = 210 - m * 2;
+  let h = (prop.height * w) / prop.width;
+  if (h > 297 - m * 2) {
+    h = 297 - m * 2;
+    w = (prop.width * h) / prop.height;
   }
+  pdf.addImage(img, 'PNG', (210 - w) / 2, m, w, h);
   pdf.save(`nota-assinada-${nota?.numero_nota || conferenciaId}.pdf`);
+
+  state.currentInvoice = notaPreviewAnterior;
+  if (notaPreviewAnterior) renderPdfPages(notaPreviewAnterior);
+  else if (pdfPage) pdfPage.innerHTML = htmlAnterior;
 }
 
 async function clearHistory() {
