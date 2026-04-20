@@ -161,10 +161,24 @@ function setUser(user) {
   if (user) refreshAll();
 }
 
-function bootstrapUser() {
+async function bootstrapUser() {
   const saved = localStorage.getItem('rcv-user');
-  if (saved) {
-    state.user = JSON.parse(saved);
+  if (!saved) return;
+  const parsed = JSON.parse(saved);
+  try {
+    // Verifica se o usuário ainda existe no banco antes de restaurar a sessão
+    const userFromDb = await dbSelect('usuarios', { eq: { matricula: parsed.matricula, senha: parsed.senha }, single: true });
+    if (userFromDb) {
+      state.user = userFromDb;
+      renderAuthState();
+      refreshAll();
+    } else {
+      // Usuário não encontrado no banco — remove sessão salva
+      localStorage.removeItem('rcv-user');
+    }
+  } catch (_err) {
+    // Se falhou (modo local ou sem conexão), usa os dados salvos mesmo assim
+    state.user = parsed;
     renderAuthState();
     refreshAll();
   }
@@ -245,7 +259,7 @@ function parseXmlText(xmlText) {
       codigo: normalizeProductCode(get('cProd')),
       descricao: get('xProd'),
       quantidadeFardo: Number(get('qCom') || 0),
-      quantidadePalete: Number((Number(get('qCom') || 0) / 80).toFixed(2)),
+      quantidadePalete: Math.floor(Number(get('qCom') || 0) / 80),
       ncm: get('NCM'),
       cfop: get('CFOP'),
     };
@@ -609,7 +623,11 @@ async function submitConferencia(evt) {
     const informadoRaw = Number(form.get(code) || 0);
     const fracaoFardo = Number(form.get(`${code}__fracao`) || 0);
     const fatorPalete = getFardosPorPalete(code);
-    const informadoFardo = unidade === 'palete' ? Number(((informadoRaw * fatorPalete) + fracaoFardo).toFixed(2)) : informadoRaw;
+    const informadoFardoRaw = unidade === 'palete' ? (informadoRaw * fatorPalete) + fracaoFardo : informadoRaw;
+    // Arredonda para 2 casas, mas se for quase inteiro (ex: 35.9999) arredonda para inteiro
+    const informadoFardo = Math.abs(informadoFardoRaw - Math.round(informadoFardoRaw)) < 0.01
+      ? Math.round(informadoFardoRaw)
+      : Number(informadoFardoRaw.toFixed(2));
     return {
       ...item,
       codigo: code,
