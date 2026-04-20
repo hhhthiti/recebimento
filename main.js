@@ -161,24 +161,10 @@ function setUser(user) {
   if (user) refreshAll();
 }
 
-async function bootstrapUser() {
+function bootstrapUser() {
   const saved = localStorage.getItem('rcv-user');
-  if (!saved) return;
-  const parsed = JSON.parse(saved);
-  try {
-    // Verifica se o usuário ainda existe no banco antes de restaurar a sessão
-    const userFromDb = await dbSelect('usuarios', { eq: { matricula: parsed.matricula, senha: parsed.senha }, single: true });
-    if (userFromDb) {
-      state.user = userFromDb;
-      renderAuthState();
-      refreshAll();
-    } else {
-      // Usuário não encontrado no banco — remove sessão salva
-      localStorage.removeItem('rcv-user');
-    }
-  } catch (_err) {
-    // Se falhou (modo local ou sem conexão), usa os dados salvos mesmo assim
-    state.user = parsed;
+  if (saved) {
+    state.user = JSON.parse(saved);
     renderAuthState();
     refreshAll();
   }
@@ -259,7 +245,7 @@ function parseXmlText(xmlText) {
       codigo: normalizeProductCode(get('cProd')),
       descricao: get('xProd'),
       quantidadeFardo: Number(get('qCom') || 0),
-      quantidadePalete: Math.floor(Number(get('qCom') || 0) / 80),
+      quantidadePalete: Number((Number(get('qCom') || 0) / 80).toFixed(2)),
       ncm: get('NCM'),
       cfop: get('CFOP'),
     };
@@ -509,8 +495,8 @@ function renderOperacaoInvoice(notaId) {
     </div>
     <label><input type="checkbox" name="pl2" /> Carreta carregada com PL2</label>
     <label>Quantidade de paletes (ex: 144)<input type="number" name="paletes_total" min="0" step="1" /></label>
-    <label>Hora início descarga (editável)<input type="time" name="hora_inicio" value="${new Date().toTimeString().slice(0, 5)}" /></label>
-    <label>Hora fim descarga (editável)<input type="time" name="hora_fim" value="${new Date().toTimeString().slice(0, 5)}" /></label>
+    <label>Hora início descarga (editável)<input type="time" name="hora_inicio" id="inputHoraInicio" value="${new Date().toTimeString().slice(0, 5)}" /></label>
+    <label>Hora fim descarga (editável)<input type="time" name="hora_fim" id="inputHoraFim" value="${new Date().toTimeString().slice(0, 5)}" /></label>
     <label><input type="checkbox" name="avaria" /> Veio avariado</label>
     <label><input type="checkbox" name="faltando" /> Veio faltando</label>
     <label><input type="checkbox" name="sobra" /> Veio com sobra</label>
@@ -525,6 +511,29 @@ function renderOperacaoInvoice(notaId) {
   });
 
   conferenciaForm.insertAdjacentHTML('beforeend', `<label>Observação<textarea name="observacao" placeholder="Opcional"></textarea></label>
+    <div class="fotos-box">
+      <p><strong>📷 Fotos do caminhão</strong></p>
+      <div class="fotos-grid">
+        <div class="foto-slot">
+          <label class="foto-label">Caminhão cheio
+            <input type="file" accept="image/*" capture="environment" id="fotoCheio" class="foto-input" data-tipo="cheio" />
+          </label>
+          <div class="foto-preview" id="previewCheio"></div>
+        </div>
+        <div class="foto-slot">
+          <label class="foto-label">Caminhão vazio
+            <input type="file" accept="image/*" capture="environment" id="fotoVazio" class="foto-input" data-tipo="vazio" />
+          </label>
+          <div class="foto-preview" id="previewVazio"></div>
+        </div>
+        <div class="foto-slot">
+          <label class="foto-label">Avaria / ocorrência
+            <input type="file" accept="image/*" capture="environment" id="fotoAvaria" class="foto-input" data-tipo="avaria" />
+          </label>
+          <div class="foto-preview" id="previewAvaria"></div>
+        </div>
+      </div>
+    </div>
     <div class="assinatura-box">
       <p><strong>Assinatura digital do conferente</strong></p>
       <canvas id="signatureCanvas" width="500" height="180"></canvas>
@@ -551,10 +560,78 @@ function renderOperacaoInvoice(notaId) {
   syncOccurrenceDescriptionVisibility();
 
   setupSignatureCanvas(nota.id);
+  setupHorarioValidation();
+  setupFotosConferencia(nota.id);
 }
 
 
-function setupSignatureCanvas(notaId) {
+function setupHorarioValidation() {
+  const inputInicio = qs('inputHoraInicio');
+  const inputFim = qs('inputHoraFim');
+  if (!inputInicio || !inputFim) return;
+
+  // Converte "HH:MM" em minutos totais para comparar facilmente
+  const toMinutes = (v) => {
+    const [h, m] = (v || '').split(':').map(Number);
+    return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null;
+  };
+
+  const validate = () => {
+    const ini = toMinutes(inputInicio.value);
+    const fim = toMinutes(inputFim.value);
+    if (ini !== null && fim !== null && fim < ini) {
+      inputFim.setCustomValidity('O horário de fim não pode ser antes do início.');
+      inputFim.title = 'O horário de fim não pode ser antes do início.';
+      inputFim.style.borderColor = 'var(--danger)';
+    } else {
+      inputFim.setCustomValidity('');
+      inputFim.title = '';
+      inputFim.style.borderColor = '';
+    }
+  };
+
+  inputInicio.addEventListener('change', validate);
+  inputFim.addEventListener('change', validate);
+  // Valida já na renderização inicial
+  validate();
+}
+
+// Armazena as fotos em base64 no state temporariamente
+const fotosConferenciaState = {};
+
+function setupFotosConferencia(notaId) {
+  fotosConferenciaState[notaId] = fotosConferenciaState[notaId] || {};
+  document.querySelectorAll('.foto-input').forEach((input) => {
+    const tipo = input.dataset.tipo;
+    const previewEl = document.getElementById(`preview${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`);
+
+    // Restaurar preview se já havia foto
+    const saved = fotosConferenciaState[notaId][tipo];
+    if (saved && previewEl) {
+      previewEl.innerHTML = `<img src="${saved}" alt="Foto ${tipo}" /><button type="button" class="btn-remove-foto" data-tipo="${tipo}" data-nota="${notaId}">✕ Remover</button>`;
+    }
+
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target.result;
+        fotosConferenciaState[notaId][tipo] = dataUrl;
+        if (previewEl) {
+          previewEl.innerHTML = `<img src="${dataUrl}" alt="Foto ${tipo}" /><button type="button" class="btn-remove-foto" data-tipo="${tipo}" data-nota="${notaId}">✕ Remover</button>`;
+          previewEl.querySelector('.btn-remove-foto').addEventListener('click', () => {
+            delete fotosConferenciaState[notaId][tipo];
+            previewEl.innerHTML = '';
+            input.value = '';
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+}
+
   const canvas = qs('signatureCanvas');
   const clearBtn = qs('btnClearSignature');
   if (!canvas) return;
@@ -606,6 +683,20 @@ async function submitConferencia(evt) {
   const form = new FormData(conferenciaForm);
   const assinaturaDataUrl = state.assinaturaDrafts[String(nota.id)] || '';
   if (!assinaturaDataUrl) return alert('Assine digitalmente antes de enviar a conferência.');
+
+  // Validação explícita de horário (double-check além do browser)
+  const toMin = (v) => { const [h, m] = (v || '').split(':').map(Number); return Number.isFinite(h) ? h * 60 + m : null; };
+  const ini = toMin(form.get('hora_inicio'));
+  const fim = toMin(form.get('hora_fim'));
+  if (ini !== null && fim !== null && fim < ini) {
+    return alert('O horário de fim da descarga não pode ser antes do horário de início.');
+  }
+
+  // Fotos capturadas via setupFotosConferencia
+  const fotosNota = fotosConferenciaState[String(nota.id)] || {};
+  const fotoCheio   = fotosNota.cheio   || null;
+  const fotoVazio   = fotosNota.vazio   || null;
+  const fotoAvaria  = fotosNota.avaria  || null;
   const houveAvaria = form.get('avaria') === 'on';
   const houveFaltaMarcada = form.get('faltando') === 'on';
   const houveSobraMarcada = form.get('sobra') === 'on';
@@ -623,11 +714,7 @@ async function submitConferencia(evt) {
     const informadoRaw = Number(form.get(code) || 0);
     const fracaoFardo = Number(form.get(`${code}__fracao`) || 0);
     const fatorPalete = getFardosPorPalete(code);
-    const informadoFardoRaw = unidade === 'palete' ? (informadoRaw * fatorPalete) + fracaoFardo : informadoRaw;
-    // Arredonda para 2 casas, mas se for quase inteiro (ex: 35.9999) arredonda para inteiro
-    const informadoFardo = Math.abs(informadoFardoRaw - Math.round(informadoFardoRaw)) < 0.01
-      ? Math.round(informadoFardoRaw)
-      : Number(informadoFardoRaw.toFixed(2));
+    const informadoFardo = unidade === 'palete' ? Number(((informadoRaw * fatorPalete) + fracaoFardo).toFixed(2)) : informadoRaw;
     return {
       ...item,
       codigo: code,
@@ -661,6 +748,9 @@ async function submitConferencia(evt) {
     itens_conferidos: conferidos,
     assinatura_data_url: assinaturaDataUrl,
     assinatura_em: new Date().toISOString(),
+    foto_cheio: fotoCheio,
+    foto_vazio: fotoVazio,
+    foto_avaria: fotoAvaria,
   });
 
   await dbUpdate('notas', { id: nota.id }, {
@@ -697,6 +787,7 @@ async function submitConferencia(evt) {
   if (!divergentes.length) await logAction('CONFERENCIA_OK', null, 0, `Nota ${nota.numero_nota} sem divergências`, false);
 
   delete state.assinaturaDrafts[String(nota.id)];
+  delete fotosConferenciaState[String(nota.id)];
   persistAssinaturas();
   alert('Conferência enviada com sucesso.');
   await loadInvoices();
@@ -735,6 +826,15 @@ async function loadConferencias() {
       <p><strong>Observação:</strong> ${conf.observacao || '-'}</p>
       <p><strong>Divergências:</strong> ${divergencias.map((d) => `${d.codigo} (${d.divergencia})`).join(', ') || 'Nenhuma'}</p>
       <p><strong>Assinatura:</strong> ${conf.assinatura_em ? `Assinada em ${new Date(conf.assinatura_em).toLocaleString('pt-BR')}` : 'Sem assinatura'}</p>
+      ${(conf.foto_cheio || conf.foto_vazio || conf.foto_avaria) ? `
+        <div class="fotos-conf">
+          <p><strong>📷 Fotos registradas:</strong></p>
+          <div class="fotos-grid-small">
+            ${conf.foto_cheio  ? `<div><span class="foto-tag">Cheio</span><img src="${conf.foto_cheio}"  alt="Caminhão cheio" /></div>`  : ''}
+            ${conf.foto_vazio  ? `<div><span class="foto-tag">Vazio</span><img src="${conf.foto_vazio}"  alt="Caminhão vazio" /></div>`  : ''}
+            ${conf.foto_avaria ? `<div><span class="foto-tag avaria">Avaria</span><img src="${conf.foto_avaria}" alt="Avaria" /></div>` : ''}
+          </div>
+        </div>` : ''}
       ${(conf.itens_conferidos || []).length ? `<table><thead><tr><th>SKU</th><th>Qtde NF</th><th>Qtde conferida</th></tr></thead><tbody>${(conf.itens_conferidos || []).map((i) => `<tr><td>${i.codigo}</td><td>${i.quantidadeFardo ?? 0}</td><td>${i.conferido ?? 0}</td></tr>`).join('')}</tbody></table>` : ''}
       ${nota?.anotacao_reabertura ? `<p><strong>Reabertura:</strong> ${nota.anotacao_reabertura}</p>` : ''}
       ${nota?.descarga_fechada ? '<p><strong>Descarga:</strong> Fechada</p>' : `<button class="btn-close" data-nota-close="${nota?.id}">Fechar descarga e enviar para logs</button>`}
@@ -931,9 +1031,14 @@ async function baixarNotaAssinada(conferenciaId) {
   const confLocal = (state.conferencias || []).find((c) => Number(c.id) === Number(conferenciaId));
   const confDb = await dbSelect('conferencias', { eq: { id: Number(conferenciaId) }, single: true });
   const conf = confDb || confLocal;
-  if (!conf) return;
-  const nota = state.invoices.find((n) => Number(n.id) === Number(conf.nota_id));
-  if (!nota?.xml_raw) return alert('XML da nota não encontrado para gerar o layout padrão.');
+  if (!conf) return alert('Conferência não encontrada.');
+
+  // Busca a nota do state, mas se xml_raw estiver ausente busca direto do banco
+  let nota = state.invoices.find((n) => Number(n.id) === Number(conf.nota_id));
+  if (!nota?.xml_raw) {
+    nota = await dbSelect('notas', { eq: { id: Number(conf.nota_id) }, single: true });
+  }
+  if (!nota?.xml_raw) return alert('XML da nota não encontrado. Verifique se a nota ainda está no banco.');
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF || !window.html2canvas) return alert('Bibliotecas PDF não carregadas.');
 

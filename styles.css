@@ -556,3 +556,111 @@ code {
   color: var(--brand-light);
   word-break: break-all;
 }
+
+/* ===== FOTOS CONFERÊNCIA ===== */
+.fotos-box {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fotos-box > p { font-size: 14px; color: var(--brand); }
+
+.fotos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.foto-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.foto-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: var(--surface);
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  text-align: center;
+  transition: border-color .15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.foto-label:hover { border-color: var(--accent); color: var(--accent); }
+.foto-label::before { content: '📷'; font-size: 22px; }
+.foto-label input[type="file"] { display: none; }
+
+.foto-preview { min-height: 0; }
+
+.foto-preview img {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  object-fit: cover;
+  max-height: 140px;
+  display: block;
+}
+
+.btn-remove-foto {
+  background: var(--danger);
+  font-size: 11px;
+  padding: 4px 10px;
+  margin-top: 4px;
+  width: 100%;
+}
+
+/* Fotos no card do CCO */
+.fotos-conf { margin-top: 8px; }
+.fotos-conf > p { margin-bottom: 8px; font-size: 13px; }
+
+.fotos-grid-small {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fotos-grid-small > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.fotos-grid-small img {
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  cursor: pointer;
+  transition: transform .15s;
+}
+
+.fotos-grid-small img:hover { transform: scale(1.05); }
+
+.foto-tag {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 99px;
+  padding: 2px 8px;
+}
+
+.foto-tag.avaria {
+  background: var(--danger);
+}
+
