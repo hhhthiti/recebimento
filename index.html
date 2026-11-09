@@ -26,43 +26,43 @@
 
     <main>
       <section id="authSection" class="card">
-        <h2>Acesso</h2>
-        <div class="auth-choice">
-          <button id="showLogin" type="button">Entrar</button>
-          <button id="showRegister" type="button">Cadastrar</button>
-        </div>
-
+        <h2>Acesso ao recebimento</h2>
         <form id="loginForm" class="stack auth-form">
           <h3>Entrar</h3>
-          <label>Matrícula<input required name="matricula" /></label>
-          <label>Senha<input required name="senha" type="password" /></label>
+          <label>Matrícula<input required name="matricula" autocomplete="username" /></label>
+          <label>Senha<input required name="senha" type="password" autocomplete="current-password" /></label>
           <button type="submit">Entrar</button>
-          <div class="recovery">
-            <strong>Recuperar senha</strong>
-            <button type="button" id="recoverSms">Via SMS</button>
-            <button type="button" id="recoverEmail">Via Email</button>
-          </div>
-          <p class="hint">Para SMS/e-mail no Supabase, configure as edge functions <code>send-sms</code> e <code>send-email</code>.</p>
+          <p class="hint">O ADM precisa provisionar seu acesso e entregar uma senha nova.</p>
         </form>
-
-        <form id="registerForm" class="stack auth-form hidden">
-          <h3>Cadastrar usuário</h3>
-          <label>Matrícula (login)<input required name="matricula" /></label>
-          <label>Senha<input required name="senha" type="password" /></label>
-          <label>Perfil
-            <select name="role" required>
-              <option value="operacao">Operação</option>
-              <option value="adm">ADM</option>
-            </select>
-          </label>
-          <label>Email<input name="email" type="email" /></label>
-          <label>Telefone<input name="telefone" placeholder="5511999999999" /></label>
-          <button type="submit">Cadastrar</button>
-        </form>
+        <details>
+          <summary>Primeiro acesso: ativar o ADM</summary>
+          <p class="hint">Use uma vez depois da migração. Escolha uma senha nova; a senha antiga não será importada.</p>
+          <form id="bootstrapForm" class="stack auth-form">
+            <label>Matrícula ADM<input name="matricula" autocomplete="username" required /></label>
+            <label>Nova senha<input name="senha" type="password" autocomplete="new-password" minlength="12" required /></label>
+            <label>Chave temporária<input name="secret" type="password" autocomplete="off" required /></label>
+            <button type="submit">Criar acesso ADM</button>
+          </form>
+        </details>
       </section>
 
       <section id="adminSection" class="card hidden">
         <h2>Painel ADM</h2>
+
+        <details class="card">
+          <summary>Usuários e redefinição de acesso</summary>
+          <p class="hint">Senhas antigas não são importadas. Defina uma senha temporária nova para provisionar ou redefinir o acesso.</p>
+          <form id="userProvisionForm" class="stack">
+            <label>Matrícula<input name="matricula" required /></label>
+            <label>E-mail de contato<input name="email" type="email" /></label>
+            <label>Telefone de contato<input name="telefone" /></label>
+            <label>Senha temporária / nova senha<input name="senha" type="password" minlength="12" autocomplete="new-password" /></label>
+            <label>Perfil<select name="role" required><option value="operacao">Operação</option><option value="adm">ADM</option></select></label>
+            <label><input name="ativo" type="checkbox" checked /> Usuário ativo</label>
+            <button type="submit">Salvar usuário</button>
+          </form>
+          <div class="table-wrap"><table><thead><tr><th>Matrícula</th><th>E-mail</th><th>Telefone</th><th>Perfil</th><th>Ativo</th><th>Supabase Auth</th><th></th></tr></thead><tbody id="userList"></tbody></table></div>
+        </details>
 
         <div class="tabs">
           <button class="tab-btn active" data-admin-tab="abertas">Cargas abertas</button>

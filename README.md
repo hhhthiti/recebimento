@@ -4,7 +4,7 @@ Aplicação web (HTML/CSS/JS) com Supabase para operação de recebimento de NF-
 
 ## Principais pontos implementados
 
-- Login/cadastro separados por telas (matrícula + senha).
+- Login pela autenticação Supabase Auth, com perfil e papel protegidos por RLS.
 - Perfis `adm` e `operacao` com visibilidade por permissão.
 - Upload XML no ADM com extração automática de motorista, telefone, placa e DT/remessa.
 - Conferência da operação com marcação direta de **avaria** e **faltando**.
@@ -14,25 +14,13 @@ Aplicação web (HTML/CSS/JS) com Supabase para operação de recebimento de NF-
 - Logs em página separada com abas (Todos, Divergências, Falta, Normais), busca e botões de baixar/apagar.
 - Destaque visual: divergência em vermelho, faltas em amarelo.
 
-## 1) Erro "Could not find the table 'public.usuarios'"
+## Segurança e configuração Supabase
 
-Esse erro significa que o schema do banco ainda não está aplicado no projeto Supabase.
+O acesso depende do Supabase Auth. Não há fallback para login local quando o banco falha, e senhas não são armazenadas na tabela `usuarios`. O ADM provisiona e redefine acessos pela Edge Function `recebimento-admin-users`.
 
-### Correção definitiva
-1. Abrir o **SQL Editor** do Supabase.
-2. Executar o arquivo `supabase-schema.sql` (versão idempotente atualizada).
-3. Recarregar o app.
+Antes de reativar o projeto pausado, faça backup e siga [`SECURITY_MIGRATION.md`](SECURITY_MIGRATION.md). A migração `supabase/migrations/202611090002_secure_auth_rls.sql` remove senhas antigas, habilita RLS com regras por perfil e protege a tabela de usuários. Todos os usuários precisam receber senhas novas.
 
-> O app entra em **MODO LOCAL** automaticamente quando não encontra as tabelas, para não travar testes.
-
-## 2) Configuração Supabase
-
-1. Crie um projeto no Supabase.
-2. Rode `supabase-schema.sql` no SQL Editor.
-3. Ajuste RLS/policies conforme sua segurança.
-4. (Opcional) configure funções para recuperação de senha:
-   - `send-sms` (Twilio);
-   - `send-email` (Resend/SMTP).
+A função de gestão exige `SUPABASE_SERVICE_ROLE_KEY` apenas no servidor e a chave temporária `RECEBIMENTO_BOOTSTRAP_SECRET` para criar o primeiro ADM. Remova a chave temporária após o bootstrap. Não publique nenhum segredo no front-end.
 
 ## 3) Executar localmente
 
@@ -80,17 +68,6 @@ Depois abra `http://localhost:8080`.
 - marca se veio avariado e se veio faltando;
 - envia conferência para retorno do ADM.
 
-## 5) SMS e E-mail
+## 5) Redefinição de acesso
 
-Se SMS/e-mail não funcionar, normalmente faltam as edge functions no projeto Supabase.
-
-Exemplo:
-```bash
-supabase functions deploy send-email
-supabase functions deploy send-sms
-supabase secrets set CHAVE=valor
-```
-
-## 6) Observação de segurança
-
-Este MVP mantém senha em texto puro para simplicidade operacional. Para produção, usar Supabase Auth + hash de senha.
+O ADM define uma senha temporária nova na tela “Usuários e redefinição de acesso” e a entrega por canal privado. Senhas antigas não são importadas nem enviadas por SMS ou e-mail pelo sistema.
