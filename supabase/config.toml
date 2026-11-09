@@ -1,0 +1,2 @@
+[functions.recebimento-admin-users]
+verify_jwt = false

@@ -2,8 +2,8 @@
 create table if not exists public.usuarios (
   id bigint generated always as identity primary key,
   matricula text not null unique,
-  senha text not null,
   role text not null check (role in ('adm', 'operacao')),
+  ativo boolean not null default true,
   email text,
   telefone text,
   created_at timestamptz default now()
@@ -81,3 +81,5 @@ alter table public.notas add column if not exists descarga_fechada boolean defau
 alter table public.conferencias add column if not exists avaria boolean default false;
 alter table public.conferencias add column if not exists faltando boolean default false;
 alter table public.conferencias add column if not exists avaria_obs text;
+
+-- Proteja o login aplicando supabase/migrations/202611090002_secure_auth_rls.sql.

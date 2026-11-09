@@ -8,16 +8,8 @@ const state = {
   invoices: [],
   logs: [],
   nqLines: [],
-  mode: 'supabase',
-  authView: 'login',
   adminTab: 'abertas',
   logFilter: 'all',
-};
-
-const localDb = {
-  read: () => JSON.parse(localStorage.getItem('rcv-local-db') || '{"usuarios":[],"notas":[],"conferencias":[],"logs":[],"chats":[],"nq_reports":[]}'),
-  write: (data) => localStorage.setItem('rcv-local-db', JSON.stringify(data)),
-  nextId: (items) => (items.at(-1)?.id || 0) + 1,
 };
 
 const qs = (id) => document.getElementById(id);
@@ -25,7 +17,9 @@ const authSection = qs('authSection');
 const adminSection = qs('adminSection');
 const operacaoSection = qs('operacaoSection');
 const logsSection = qs('logsSection');
-const registerForm = qs('registerForm');
+const bootstrapForm = qs('bootstrapForm');
+const userProvisionForm = qs('userProvisionForm');
+const userList = qs('userList');
 const loginForm = qs('loginForm');
 const uploadXmlForm = qs('uploadXmlForm');
 const conferenciaForm = qs('conferenciaForm');
@@ -36,74 +30,30 @@ const adminConferencias = qs('adminConferencias');
 const adminNqContainer = qs('adminNqContainer');
 const notaInfo = qs('notaInfo');
 
-const isSchemaMissingError = (error) => {
-  const msg = error?.message || '';
-  return msg.includes('schema cache') || msg.includes('Could not find the table') || msg.includes('relation') || msg.includes('does not exist');
-};
-
-async function maybeSwitchToLocalMode(error) {
-  if (!error || !isSchemaMissingError(error) || state.mode === 'local') return false;
-  state.mode = 'local';
-  alert('Sem schema do Supabase. Entrando em MODO LOCAL. Rode o arquivo supabase-schema.sql atualizado no SQL Editor para ativar banco online.');
-  return true;
-}
-
 async function dbSelect(table, options = {}) {
-  if (state.mode === 'local') {
-    let rows = [...(localDb.read()[table] || [])];
-    Object.entries(options.eq || {}).forEach(([k, v]) => { rows = rows.filter((r) => String(r[k]) === String(v)); });
-    if (options.orderBy) rows.sort((a, b) => new Date(b[options.orderBy] || 0) - new Date(a[options.orderBy] || 0));
-    return options.single ? rows[0] || null : rows;
-  }
   let query = supabase.from(table).select('*');
   Object.entries(options.eq || {}).forEach(([k, v]) => { query = query.eq(k, v); });
   if (options.orderBy) query = query.order(options.orderBy, { ascending: false });
   if (options.single) query = query.single();
   const { data, error } = await query;
-  if (await maybeSwitchToLocalMode(error)) return dbSelect(table, options);
   if (error) throw error;
   return data;
 }
 
 async function dbInsert(table, payload) {
-  if (state.mode === 'local') {
-    const db = localDb.read();
-    const arr = db[table] || [];
-    const item = { ...payload, id: localDb.nextId(arr), created_at: new Date().toISOString() };
-    arr.push(item);
-    db[table] = arr;
-    localDb.write(db);
-    return item;
-  }
-  const { data, error } = await supabase.from(table).insert(payload).select('*').single();
-  if (await maybeSwitchToLocalMode(error)) return dbInsert(table, payload);
+  const { error } = await supabase.from(table).insert(payload);
   if (error) throw error;
-  return data;
 }
 
 async function dbUpdate(table, match, patch) {
-  if (state.mode === 'local') {
-    const db = localDb.read();
-    db[table] = (db[table] || []).map((r) => Object.entries(match).every(([k, v]) => String(r[k]) === String(v)) ? { ...r, ...patch } : r);
-    localDb.write(db);
-    return;
-  }
   let query = supabase.from(table).update(patch);
   Object.entries(match).forEach(([k, v]) => { query = query.eq(k, v); });
   const { error } = await query;
-  if (await maybeSwitchToLocalMode(error)) return dbUpdate(table, match, patch);
   if (error) throw error;
 }
 
 async function dbDeleteAll(table) {
-  if (state.mode === 'local') {
-    const db = localDb.read();
-    db[table] = [];
-    localDb.write(db);
-    return;
-  }
   const { error } = await supabase.from(table).delete().neq('id', 0);
-  if (await maybeSwitchToLocalMode(error)) return dbDeleteAll(table);
   if (error) throw error;
 }
 
@@ -115,37 +65,31 @@ function normalizeProductCode(code) {
   return digits.replace(/^0+/, '') || digits;
 }
 
-function setAuthView(view) {
-  state.authView = view;
-  registerForm.classList.toggle('hidden', view !== 'register');
-  loginForm.classList.toggle('hidden', view !== 'login');
-}
-
 function setUser(user) {
   state.user = user;
-  if (user) localStorage.setItem('rcv-user', JSON.stringify(user));
-  else {
-    localStorage.removeItem('rcv-user');
-    qs('chatPanel').classList.add('hidden');
-  }
+  if (!user) qs('chatPanel').classList.add('hidden');
   renderAuthState();
-  if (user) refreshAll();
+  if (user) refreshAll().catch((error) => alert(`Falha ao carregar dados: ${error.message}`));
 }
 
-function bootstrapUser() {
-  const saved = localStorage.getItem('rcv-user');
-  if (saved) {
-    state.user = JSON.parse(saved);
-    renderAuthState();
-    refreshAll();
-  }
+async function resolveAuthUser(authUser) {
+  if (!authUser) return null;
+  const { data, error } = await supabase.from('recebimento_profiles')
+    .select('auth_user_id, matricula, role, ativo, email, telefone')
+    .eq('auth_user_id', authUser.id).maybeSingle();
+  if (error || !data?.ativo) throw error || new Error('Usuário inativo ou ainda não provisionado.');
+  return data;
 }
 
-async function verifySupabaseSchema() {
+async function bootstrapUser() {
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data?.session?.user) return;
   try {
-    await dbSelect('usuarios', { orderBy: 'created_at' });
-  } catch (error) {
-    await maybeSwitchToLocalMode(error);
+    const profile = await resolveAuthUser(data.session.user);
+    setUser(profile);
+  } catch (_) {
+    await supabase.auth.signOut();
+    setUser(null);
   }
 }
 
@@ -227,31 +171,91 @@ function parseXmlText(xmlText) {
   };
 }
 
-async function registerUser(evt) {
-  evt.preventDefault();
-  const f = new FormData(registerForm);
-  try {
-    await dbInsert('usuarios', {
-      matricula: f.get('matricula'),
-      senha: f.get('senha'),
-      role: f.get('role'),
-      email: f.get('email') || null,
-      telefone: f.get('telefone') || null,
-    });
-    alert(`Usuário cadastrado com sucesso! (${state.mode.toUpperCase()})`);
-    registerForm.reset();
-    setAuthView('login');
-  } catch (error) {
-    alert(`Erro ao cadastrar: ${error.message}`);
-  }
+function usernameToEmail(matricula) {
+  return `${String(matricula || '').trim().toLowerCase()}@recebimento.invalid`;
 }
 
 async function login(evt) {
   evt.preventDefault();
   const f = new FormData(loginForm);
-  const data = await dbSelect('usuarios', { eq: { matricula: f.get('matricula'), senha: f.get('senha') }, single: true });
-  if (!data) return alert('Matrícula ou senha inválida.');
-  setUser(data);
+  const matricula = String(f.get('matricula') || '').trim();
+  const senha = String(f.get('senha') || '');
+  if (!matricula || !senha) return alert('Informe matrícula e senha.');
+  const { data, error } = await supabase.auth.signInWithPassword({ email: usernameToEmail(matricula), password: senha });
+  if (error || !data?.user) return alert('Matrícula/senha inválidas ou acesso ainda não redefinido.');
+  try {
+    setUser(await resolveAuthUser(data.user));
+    loginForm.reset();
+  } catch (profileError) {
+    await supabase.auth.signOut();
+    setUser(null);
+    alert(`Acesso inativo ou não provisionado. Solicite ajuda ao ADM. ${profileError.message}`);
+  }
+}
+
+async function bootstrapFirstAdmin(evt) {
+  evt.preventDefault();
+  const f = new FormData(bootstrapForm);
+  const matricula = String(f.get('matricula') || '').trim();
+  const senha = String(f.get('senha') || '');
+  const secret = String(f.get('secret') || '');
+  if (!matricula || senha.length < 12 || !secret) return alert('Informe matrícula, senha nova com pelo menos 12 caracteres e chave temporária.');
+  const { data, error } = await supabase.functions.invoke('recebimento-admin-users', {
+    body: { action: 'bootstrap', matricula, senha, secret }
+  });
+  if (error || !data?.success) return alert(`Não foi possível ativar o ADM: ${error?.message || data?.error || 'verifique a configuração temporária'}.`);
+  bootstrapForm.reset();
+  alert('Acesso ADM criado. Entre com a senha nova escolhida.');
+}
+
+async function loadUsers() {
+  if (state.user?.role !== 'adm') return;
+  const { data, error } = await supabase.functions.invoke('recebimento-admin-users', { body: { action: 'list' } });
+  if (error || !data?.success) throw error || new Error(data?.error || 'Falha ao listar usuários.');
+  userList.replaceChildren();
+  (data.users || []).forEach((user) => {
+    const row = document.createElement('tr');
+    [user.matricula, user.email || '', user.telefone || '', user.role, user.ativo ? 'SIM' : 'NÃO', user.authProvisioned ? 'Ativo' : 'Redefinir senha'].forEach((value) => {
+      const cell = document.createElement('td');
+      cell.textContent = String(value ?? '');
+      row.appendChild(cell);
+    });
+    const cell = document.createElement('td');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'secondary';
+    button.textContent = 'Editar';
+    button.addEventListener('click', () => {
+      userProvisionForm.elements.matricula.value = user.matricula;
+      userProvisionForm.elements.email.value = user.email || '';
+      userProvisionForm.elements.telefone.value = user.telefone || '';
+      userProvisionForm.elements.role.value = user.role;
+      userProvisionForm.elements.ativo.checked = Boolean(user.ativo);
+      userProvisionForm.elements.senha.value = '';
+    });
+    cell.appendChild(button);
+    row.appendChild(cell);
+    userList.appendChild(row);
+  });
+}
+
+async function saveUser(evt) {
+  evt.preventDefault();
+  if (state.user?.role !== 'adm') return alert('Ação exclusiva do ADM.');
+  const f = new FormData(userProvisionForm);
+  const matricula = String(f.get('matricula') || '').trim();
+  const senha = String(f.get('senha') || '');
+  const payload = {
+    action: 'save', matricula, senha: senha || undefined,
+    email: String(f.get('email') || '').trim(), telefone: String(f.get('telefone') || '').trim(),
+    role: String(f.get('role') || ''), ativo: f.get('ativo') === 'on'
+  };
+  const { data, error } = await supabase.functions.invoke('recebimento-admin-users', { body: payload });
+  if (error || !data?.success) return alert(`Falha ao salvar usuário: ${error?.message || data?.error || 'verifique os dados'}.`);
+  userProvisionForm.reset();
+  userProvisionForm.elements.ativo.checked = true;
+  await loadUsers();
+  alert(senha ? 'Usuário provisionado. Entregue a senha temporária em canal privado.' : 'Perfil atualizado.');
 }
 
 function renderPdfPages(nota) {
@@ -531,39 +535,6 @@ async function loadLogs() {
   renderLogs();
 }
 
-async function recoverBySms() {
-  const matricula = prompt('Informe a matrícula');
-  if (!matricula) return;
-  const telefone = prompt('Informe o telefone cadastrado (com DDI)');
-  if (!telefone) return;
-  const novaSenha = Math.random().toString(36).slice(-8);
-  try {
-    await dbUpdate('usuarios', { matricula, telefone }, { senha: novaSenha });
-    if (state.mode === 'supabase') {
-      const { error } = await supabase.functions.invoke('send-sms', { body: { to: telefone, message: `Nova senha: ${novaSenha}` } });
-      if (error) throw error;
-    }
-    alert(`Senha resetada. Nova senha: ${novaSenha}`);
-  } catch (error) {
-    alert(`SMS não funcionou. Configure send-sms no Supabase (Twilio).\nErro: ${error.message}`);
-  }
-}
-
-async function recoverByEmail() {
-  const matricula = prompt('Informe a matrícula');
-  if (!matricula) return;
-  const novaSenha = Math.random().toString(36).slice(-8);
-  try {
-    await dbUpdate('usuarios', { matricula }, { senha: novaSenha });
-    if (state.mode === 'supabase') {
-      const { error } = await supabase.functions.invoke('send-email', { body: { to: 'leseliv487@fengnu.com', subject: 'Nova senha', text: `Nova senha: ${novaSenha}` } });
-      if (error) throw error;
-    }
-    alert(`Senha resetada. Nova senha: ${novaSenha}`);
-  } catch (error) {
-    alert(`E-mail não funcionou. Configure send-email no Supabase (Resend/SMTP).\nErro: ${error.message}`);
-  }
-}
 
 function exportLogs() {
   const blob = new Blob([JSON.stringify(state.logs, null, 2)], { type: 'application/json' });
@@ -613,22 +584,20 @@ async function refreshAll() {
     await loadLogs();
     await loadConferencias();
     await loadNqReports();
+    await loadUsers();
   }
   await loadChats();
 }
 
-registerForm.addEventListener('submit', registerUser);
+bootstrapForm?.addEventListener('submit', bootstrapFirstAdmin);
+userProvisionForm?.addEventListener('submit', saveUser);
 loginForm.addEventListener('submit', login);
 uploadXmlForm?.addEventListener('submit', publishInvoice);
 conferenciaForm.addEventListener('submit', submitConferencia);
 notaSelect.addEventListener('change', (evt) => renderOperacaoInvoice(evt.target.value));
-qs('showLogin').addEventListener('click', () => setAuthView('login'));
-qs('showRegister').addEventListener('click', () => setAuthView('register'));
-qs('recoverSms').addEventListener('click', recoverBySms);
-qs('recoverEmail').addEventListener('click', recoverByEmail);
 qs('btnExportLogs').addEventListener('click', exportLogs);
 qs('btnClearLogs').addEventListener('click', clearLogs);
-qs('btnLogout').addEventListener('click', () => setUser(null));
+qs('btnLogout').addEventListener('click', async () => { await supabase.auth.signOut(); setUser(null); });
 qs('btnPrintInvoice')?.addEventListener('click', generatePdfFromPages);
 qs('chatBubble').addEventListener('click', toggleChat);
 qs('chatForm').addEventListener('submit', sendChat);
@@ -676,7 +645,5 @@ setInterval(() => {
 (async () => {
   setLogsPage(false);
   setAdminTab('abertas');
-  await verifySupabaseSchema();
-  setAuthView('login');
   bootstrapUser();
 })();
